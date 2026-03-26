@@ -38,7 +38,6 @@ public class LoginGUI extends JFrame {
         topPanel.setBackground(Theme.BG);
         topPanel.setBorder(BorderFactory.createEmptyBorder(40, 0, 20, 0));
 
-        // Logo / 图标
         JLabel iconLabel = new JLabel("📇");
         iconLabel.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 48));
         iconLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -46,7 +45,6 @@ public class LoginGUI extends JFrame {
 
         topPanel.add(Box.createVerticalStrut(12));
 
-        // 标题
         JLabel titleLabel = new JLabel("通讯录管理系统");
         titleLabel.setFont(Theme.FONT_TITLE);
         titleLabel.setForeground(Theme.TEXT_PRIMARY);
@@ -55,7 +53,6 @@ public class LoginGUI extends JFrame {
 
         topPanel.add(Box.createVerticalStrut(4));
 
-        // 副标题
         JLabel subtitleLabel = new JLabel("登录您的账号以继续");
         subtitleLabel.setFont(new Font("微软雅黑", Font.PLAIN, 12));
         subtitleLabel.setForeground(Theme.TEXT_SECONDARY);
@@ -73,20 +70,17 @@ public class LoginGUI extends JFrame {
         gbc.gridx = 0;
         gbc.weightx = 1.0;
 
-        // 用户名标签
         gbc.gridy = 0;
         JLabel usernameLabel = new JLabel("账号");
         usernameLabel.setFont(Theme.FONT_BOLD);
         usernameLabel.setForeground(Theme.TEXT_PRIMARY);
         cardPanel.add(usernameLabel, gbc);
 
-        // 用户名输入框
         gbc.gridy = 1;
         usernameField = Theme.createTextField("请输入账号");
         usernameField.setPreferredSize(new Dimension(300, 38));
         cardPanel.add(usernameField, gbc);
 
-        // 密码标签
         gbc.gridy = 2;
         gbc.insets = new Insets(8, 0, 14, 0);
         JLabel passwordLabel = new JLabel("密码");
@@ -94,11 +88,9 @@ public class LoginGUI extends JFrame {
         passwordLabel.setForeground(Theme.TEXT_PRIMARY);
         cardPanel.add(passwordLabel, gbc);
 
-        // 密码输入框
         gbc.gridy = 3;
         gbc.insets = new Insets(0, 0, 20, 0);
         passwordField = new JPasswordField() {
-            private boolean showing = true;
             @Override
             protected void paintComponent(Graphics g) {
                 super.paintComponent(g);
@@ -125,7 +117,6 @@ public class LoginGUI extends JFrame {
         passwordField.setSelectedTextColor(Color.WHITE);
         cardPanel.add(passwordField, gbc);
 
-        // 登录按钮
         gbc.gridy = 4;
         gbc.insets = new Insets(0, 0, 0, 0);
         loginButton = Theme.createPrimaryButton("登 录");
@@ -140,7 +131,7 @@ public class LoginGUI extends JFrame {
         bottomPanel.setLayout(new BoxLayout(bottomPanel, BoxLayout.Y_AXIS));
         bottomPanel.setBackground(Theme.BG);
         bottomPanel.setBorder(BorderFactory.createEmptyBorder(4, 0, 12, 0));
-        JLabel footerLabel = new JLabel("默认账号 admin / 123456");
+        JLabel footerLabel = new JLabel("默认账号 " + Utils.DEFAULT_ADMIN_USERNAME);
         footerLabel.setFont(new Font("微软雅黑", Font.PLAIN, 11));
         footerLabel.setForeground(Theme.TEXT_HINT);
         footerLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -171,7 +162,6 @@ public class LoginGUI extends JFrame {
                 }
                 Map<String, Object> map = Utils.login(username, pass);
                 if (map.get("status").equals(200)) {
-                    // 登录成功动画效果
                     loginButton.setText("登录成功 ✓");
                     loginButton.setEnabled(false);
                     Timer t = new Timer(500, ev -> {
@@ -181,16 +171,13 @@ public class LoginGUI extends JFrame {
                     t.setRepeats(false);
                     t.start();
                 } else {
-                    // 抖动动画
                     shakeAndReset(usernameField, passwordField, map.get("mess").toString());
                 }
             }
         });
 
-        // 回车登录
         getRootPane().setDefaultButton(loginButton);
 
-        // 焦点输入框交互
         usernameField.addFocusListener(new FocusAdapter() {
             @Override
             public void focusGained(FocusEvent e) {
@@ -229,18 +216,17 @@ public class LoginGUI extends JFrame {
 
     /** 输入框抖动效果 */
     private void shakeAndReset(JTextField uf, JPasswordField pf, String msg) {
-        Theme.showMessage(loginGUI, msg.toString(), -1);
+        Theme.showMessage(loginGUI, msg, -1);
         uf.setText("");
         pf.setText("");
         uf.requestFocus();
-        // 简单抖动
         int x = loginGUI.getLocation().x;
         int y = loginGUI.getLocation().y;
         int[] offsets = {-4, 4, -3, 3, -2, 2, -1, 1, 0};
         Timer shake = new Timer(30, e -> {
             int idx = 0;
             for (int off : offsets) {
-                final int frame = idx++;
+                idx++;
                 Timer t = new Timer(30 * idx, ev -> loginGUI.setLocation(x + off, y));
                 t.setRepeats(false);
                 t.start();

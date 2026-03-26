@@ -1,52 +1,55 @@
 package com.txl;
 
-import java.awt.event.WindowAdapter;
-import java.awt.event.WindowEvent;
-import java.util.*;
 import javax.swing.*;
-import java.sql.ResultSet;
-import javax.swing.table.DefaultTableModel;
-import javax.swing.event.TableModelListener;
 import javax.swing.event.TableModelEvent;
+import javax.swing.event.TableModelListener;
+import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.awt.datatransfer.StringSelection;
 import java.awt.event.*;
-import java.util.List;
+import java.sql.ResultSet;
 import java.sql.Statement;
-import java.util.concurrent.atomic.AtomicReference;
-import javax.swing.Timer;
+import java.text.SimpleDateFormat;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Set;
 
 public class ContactWindow extends JFrame {
+    private static final int DEFAULT_PAGE_SIZE = 12;
+
     private ContactWindow contactWindow;
-    // panel 指向内容区，用于消息框定位
     private JPanel contentPanel;
-    private Map<String, Object> allComs = new HashMap<>();
-    private static Map<String, Map<String, String>> propMap = new HashMap<>();
+    private final Map<String, Object> allComs = new HashMap<>();
+    private static final Map<String, Map<String, String>> propMap = new HashMap<>();
     public Integer current = 1;
     public Integer pages = 1;
-    public Integer size = 50;
+    public Integer size = DEFAULT_PAGE_SIZE;
     public Integer total = 0;
     public Integer mode = 0;
 
-    // 直接编辑监听器引用，每次数据刷新前先移除旧的
     private TableModelListener tableEditListener;
+    private boolean adjustingPageSize;
 
     public ContactWindow() {
         initWindow();
         initPropMap();
         initActionListeners();
-        DefaultTableModel model = (DefaultTableModel) allComs.get("model");
-        initTableData(model, getSearchMap());
+        initTableData((DefaultTableModel) allComs.get("model"), getSearchMap());
         this.setVisible(true);
         setLocationRelativeTo(null);
         this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        schedulePageSizeRefresh();
     }
 
     public ContactWindow(JFrame parentJFrame) {
         initWindow();
         initPropMap();
         initActionListeners();
-        DefaultTableModel model = (DefaultTableModel) allComs.get("model");
-        initTableData(model, getSearchMap());
+        initTableData((DefaultTableModel) allComs.get("model"), getSearchMap());
         this.setVisible(true);
         setLocationRelativeTo(null);
         this.setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
@@ -57,6 +60,7 @@ public class ContactWindow extends JFrame {
                 contactWindow.dispose();
             }
         });
+        schedulePageSizeRefresh();
     }
 
     public ContactWindow(Integer mode) {
@@ -64,19 +68,15 @@ public class ContactWindow extends JFrame {
         initWindow();
         initPropMap();
         initActionListeners();
-        DefaultTableModel model = (DefaultTableModel) allComs.get("model");
-        initTableData(model, getSearchMap());
+        initTableData((DefaultTableModel) allComs.get("model"), getSearchMap());
         this.setVisible(true);
         this.setLocationRelativeTo(null);
-        switch (mode) {
-            case 1:
-                ((JButton) allComs.get("del_button")).setVisible(false);
-                ((JButton) allComs.get("add_button")).setVisible(false);
-                ((JButton) allComs.get("edit_button")).setVisible(false);
-                break;
-            default:
-                break;
+        if (mode == 1) {
+            ((JButton) allComs.get("del_button")).setVisible(false);
+            ((JButton) allComs.get("add_button")).setVisible(false);
+            ((JButton) allComs.get("edit_button")).setVisible(false);
         }
+        schedulePageSizeRefresh();
     }
 
     private void initWindow() {
@@ -87,7 +87,6 @@ public class ContactWindow extends JFrame {
         this.setSize(960, 660);
         getContentPane().setBackground(Theme.BG);
 
-        // ====== 顶部标题栏 ======
         JPanel headerPanel = new JPanel(new BorderLayout());
         headerPanel.setBackground(Theme.PRIMARY);
 
@@ -110,16 +109,12 @@ public class ContactWindow extends JFrame {
         JLabel timeLabel = new JLabel();
         timeLabel.setFont(new Font("微软雅黑", Font.PLAIN, 12));
         timeLabel.setForeground(new Color(200, 220, 255));
-        Timer timer = new Timer(1000, e -> {
-            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-            timeLabel.setText(sdf.format(new Date()));
-        });
+        Timer timer = new Timer(1000, e -> timeLabel.setText(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date())));
         timer.start();
         timer.setInitialDelay(0);
         headerRight.add(timeLabel);
         headerPanel.add(headerRight, BorderLayout.EAST);
 
-        // ====== 搜索栏 ======
         JPanel searchCardPanel = Theme.createCardPanel();
         searchCardPanel.setLayout(new BorderLayout(0, 8));
 
@@ -131,104 +126,105 @@ public class ContactWindow extends JFrame {
         searchRow.add(searchIcon);
 
         searchRow.add(Theme.createLabel("姓名："));
-        JTextField c_name_textField = Theme.createTextField("姓名");
-        c_name_textField.setPreferredSize(new Dimension(120, 34));
-        searchRow.add(c_name_textField);
-        allComs.put("c_name_textField", c_name_textField);
+        JTextField cNameTextField = Theme.createTextField("姓名");
+        cNameTextField.setPreferredSize(new Dimension(120, 34));
+        searchRow.add(cNameTextField);
+        allComs.put("c_name_textField", cNameTextField);
 
         searchRow.add(Theme.createLabel("分类："));
-        String[] c_nickname_options = {"全部", "伙伴", "家人", "亲戚", "朋友", "同事", "客户", "其他"};
-        JComboBox<String> c_nickname_comboBox = Theme.createComboBox(c_nickname_options);
-        c_nickname_comboBox.setPreferredSize(new Dimension(100, 34));
-        searchRow.add(c_nickname_comboBox);
-        allComs.put("c_nickname_comboBox", c_nickname_comboBox);
+        JComboBox<String> cNicknameComboBox = createCategoryComboBox();
+        cNicknameComboBox.setPreferredSize(new Dimension(180, 34));
+        searchRow.add(cNicknameComboBox);
+        allComs.put("c_nickname_comboBox", cNicknameComboBox);
 
         searchRow.add(Theme.createLabel("公司："));
-        JTextField c_company_textField = Theme.createTextField("公司名称");
-        c_company_textField.setPreferredSize(new Dimension(150, 34));
-        searchRow.add(c_company_textField);
-        allComs.put("c_company_textField", c_company_textField);
+        JTextField cCompanyTextField = Theme.createTextField("公司名称");
+        cCompanyTextField.setPreferredSize(new Dimension(150, 34));
+        searchRow.add(cCompanyTextField);
+        allComs.put("c_company_textField", cCompanyTextField);
 
-        searchRow.add(Theme.createLabel("分组："));
-        String[] c_group_name_options = {"全部", "家人", "亲戚", "朋友", "其他"};
-        JComboBox<String> c_group_name_comboBox = Theme.createComboBox(c_group_name_options);
-        c_group_name_comboBox.setPreferredSize(new Dimension(100, 34));
-        searchRow.add(c_group_name_comboBox);
-        allComs.put("c_group_name_comboBox", c_group_name_comboBox);
+        JButton searchButton = Theme.createSearchButton();
+        searchButton.setPreferredSize(new Dimension(90, 34));
+        searchRow.add(searchButton);
+        allComs.put("search_button", searchButton);
 
-        JButton search_button = Theme.createSearchButton();
-        search_button.setPreferredSize(new Dimension(90, 34));
-        searchRow.add(search_button);
-        allComs.put("search_button", search_button);
-
-        // 重置按钮
-        JButton reset_button = Theme.createFlatButton("↺ 重置");
-        reset_button.setPreferredSize(new Dimension(80, 34));
-        searchRow.add(reset_button);
-        allComs.put("reset_button", reset_button);
+        JButton resetButton = Theme.createFlatButton("↺ 重置");
+        resetButton.setPreferredSize(new Dimension(80, 34));
+        searchRow.add(resetButton);
+        allComs.put("reset_button", resetButton);
 
         searchCardPanel.add(searchRow, BorderLayout.NORTH);
 
         JPanel actionRow = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         actionRow.setOpaque(false);
 
-        JButton add_button = Theme.createPrimaryButton("➕ 新增");
-        add_button.setPreferredSize(new Dimension(90, 34));
-        actionRow.add(add_button);
-        allComs.put("add_button", add_button);
+        JButton addButton = Theme.createPrimaryButton("➕ 新增");
+        addButton.setPreferredSize(new Dimension(90, 34));
+        actionRow.add(addButton);
+        allComs.put("add_button", addButton);
 
-        JButton edit_button = Theme.createFlatButton("✏️ 修改");
-        edit_button.setPreferredSize(new Dimension(90, 34));
-        actionRow.add(edit_button);
-        allComs.put("edit_button", edit_button);
+        JButton editButton = Theme.createFlatButton("✏️ 修改");
+        editButton.setPreferredSize(new Dimension(90, 34));
+        actionRow.add(editButton);
+        allComs.put("edit_button", editButton);
 
-        JButton del_button = Theme.createDangerButton("🗑️ 删除");
-        del_button.setPreferredSize(new Dimension(90, 34));
-        actionRow.add(del_button);
-        allComs.put("del_button", del_button);
+        JButton delButton = Theme.createDangerButton("🗑️ 删除");
+        delButton.setPreferredSize(new Dimension(90, 34));
+        actionRow.add(delButton);
+        allComs.put("del_button", delButton);
 
-        JButton select_button = Theme.createPrimaryButton("确认");
-        select_button.setPreferredSize(new Dimension(90, 34));
-        select_button.setVisible(false);
-        actionRow.add(select_button);
-        allComs.put("select_button", select_button);
+        JButton selectButton = Theme.createPrimaryButton("确认");
+        selectButton.setPreferredSize(new Dimension(90, 34));
+        selectButton.setVisible(false);
+        actionRow.add(selectButton);
+        allComs.put("select_button", selectButton);
 
         searchCardPanel.add(actionRow, BorderLayout.SOUTH);
 
-        // ====== 表格区域 ======
         JPanel tablePanel = new JPanel(new BorderLayout());
         tablePanel.setBackground(Theme.BG);
         tablePanel.setBorder(BorderFactory.createEmptyBorder(8, 16, 8, 16));
 
-        // 枚举列（编号0、分类2、分组9）禁止直接编辑，文本列允许就地修改
         DefaultTableModel model = new DefaultTableModel() {
             @Override
             public boolean isCellEditable(int row, int column) {
-                return column != 0 && column != 2 && column != 9;
+                return column != 0 && column != 2;
             }
         };
         JTable table = Theme.createTable(model);
+        table.setAutoResizeMode(JTable.AUTO_RESIZE_OFF);
+        table.putClientProperty("terminateEditOnFocusLost", Boolean.TRUE);
         allComs.put("model", model);
         allComs.put("table", table);
         model.setColumnIdentifiers(new Object[]{
-                "编号", "姓名", "分类", "电话", "邮箱", "地址", "生日", "公司", "岗位", "分组", "备注"
+                "编号", "姓名", "分类", "电话", "邮箱", "地址", "公司", "岗位", "备注"
         });
 
-        // 设置各列宽度（编号列窄，备注列自动扩展）
-        table.getColumnModel().getColumn(0).setPreferredWidth(50);
-        table.getColumnModel().getColumn(0).setMaxWidth(60);
-        table.getColumnModel().getColumn(1).setPreferredWidth(80);
-        table.getColumnModel().getColumn(2).setPreferredWidth(70);
-        table.getColumnModel().getColumn(3).setPreferredWidth(110);
-        table.getColumnModel().getColumn(4).setPreferredWidth(140);
-        table.getColumnModel().getColumn(5).setPreferredWidth(120);
-        table.getColumnModel().getColumn(6).setPreferredWidth(90);
+        table.getColumnModel().getColumn(0).setPreferredWidth(60);
+        table.getColumnModel().getColumn(0).setMaxWidth(70);
+        table.getColumnModel().getColumn(1).setPreferredWidth(100);
+        table.getColumnModel().getColumn(2).setPreferredWidth(140);
+        table.getColumnModel().getColumn(3).setPreferredWidth(120);
+        table.getColumnModel().getColumn(4).setPreferredWidth(180);
+        table.getColumnModel().getColumn(5).setPreferredWidth(360);
+        table.getColumnModel().getColumn(6).setPreferredWidth(180);
         table.getColumnModel().getColumn(7).setPreferredWidth(120);
-        table.getColumnModel().getColumn(8).setPreferredWidth(80);
-        table.getColumnModel().getColumn(9).setPreferredWidth(60);
-        table.getColumnModel().getColumn(10).setPreferredWidth(180);
+        table.getColumnModel().getColumn(8).setPreferredWidth(260);
 
-        // 右键菜单：复制单元格内容
+        table.addMouseMotionListener(new MouseMotionAdapter() {
+            @Override
+            public void mouseMoved(MouseEvent e) {
+                int row = table.rowAtPoint(e.getPoint());
+                int col = table.columnAtPoint(e.getPoint());
+                if (row >= 0 && col >= 0) {
+                    Object value = table.getValueAt(row, col);
+                    table.setToolTipText(value == null ? null : value.toString());
+                } else {
+                    table.setToolTipText(null);
+                }
+            }
+        });
+
         JPopupMenu tableMenu = new JPopupMenu();
         JMenuItem copyItem = new JMenuItem("复制单元格");
         copyItem.setFont(Theme.FONT_DEFAULT);
@@ -238,9 +234,7 @@ public class ContactWindow extends JFrame {
             if (row >= 0 && col >= 0) {
                 Object val = table.getValueAt(row, col);
                 if (val != null) {
-                    java.awt.datatransfer.StringSelection sel =
-                            new java.awt.datatransfer.StringSelection(val.toString());
-                    Toolkit.getDefaultToolkit().getSystemClipboard().setContents(sel, null);
+                    Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(val.toString()), null);
                 }
             }
         });
@@ -258,11 +252,17 @@ public class ContactWindow extends JFrame {
 
         JScrollPane scrollPane = new JScrollPane(table);
         scrollPane.setBorder(BorderFactory.createLineBorder(Theme.BORDER));
-        // 滚动速度优化
+        scrollPane.setHorizontalScrollBarPolicy(ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
         scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+        scrollPane.getViewport().addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentResized(ComponentEvent e) {
+                refreshForViewportSizeChange();
+            }
+        });
         tablePanel.add(scrollPane, BorderLayout.CENTER);
+        allComs.put("table_scrollPane", scrollPane);
 
-        // ====== 底部分页栏 ======
         JPanel footerPanel = new JPanel(new BorderLayout());
         footerPanel.setBackground(Theme.CARD_BG);
         footerPanel.setBorder(BorderFactory.createCompoundBorder(
@@ -270,47 +270,44 @@ public class ContactWindow extends JFrame {
                 BorderFactory.createEmptyBorder(10, 20, 10, 20)
         ));
 
-        // 左侧：总记录数 + 选中提示
         JPanel leftFooter = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 0));
         leftFooter.setBackground(Theme.CARD_BG);
-        JLabel sum_label = new JLabel("共 0 条记录");
-        sum_label.setFont(Theme.FONT_DEFAULT);
-        sum_label.setForeground(Theme.TEXT_SECONDARY);
-        leftFooter.add(sum_label);
-        allComs.put("sum_label", sum_label);
-        JLabel select_hint_label = new JLabel("");
-        select_hint_label.setFont(new Font("微软雅黑", Font.PLAIN, 11));
-        select_hint_label.setForeground(Theme.TEXT_HINT);
-        leftFooter.add(select_hint_label);
-        allComs.put("select_hint_label", select_hint_label);
+        JLabel sumLabel = new JLabel("共 0 条记录");
+        sumLabel.setFont(Theme.FONT_DEFAULT);
+        sumLabel.setForeground(Theme.TEXT_SECONDARY);
+        leftFooter.add(sumLabel);
+        allComs.put("sum_label", sumLabel);
+        JLabel selectHintLabel = new JLabel("");
+        selectHintLabel.setFont(new Font("微软雅黑", Font.PLAIN, 11));
+        selectHintLabel.setForeground(Theme.TEXT_HINT);
+        leftFooter.add(selectHintLabel);
+        allComs.put("select_hint_label", selectHintLabel);
         footerPanel.add(leftFooter, BorderLayout.WEST);
 
-        // 右侧分页
         JPanel pagePanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         pagePanel.setBackground(Theme.CARD_BG);
 
-        JLabel page_info_label = new JLabel("第 1 页 / 共 1 页");
-        page_info_label.setFont(Theme.FONT_DEFAULT);
-        page_info_label.setForeground(Theme.TEXT_SECONDARY);
-        pagePanel.add(page_info_label);
-        allComs.put("page_num_label", page_info_label);
+        JLabel pageInfoLabel = new JLabel("第 1 页 / 共 1 页");
+        pageInfoLabel.setFont(Theme.FONT_DEFAULT);
+        pageInfoLabel.setForeground(Theme.TEXT_SECONDARY);
+        pagePanel.add(pageInfoLabel);
+        allComs.put("page_num_label", pageInfoLabel);
 
         pagePanel.add(Box.createHorizontalStrut(8));
 
-        JLabel page_size_label = new JLabel("每页 50 条");
-        page_size_label.setFont(new Font("微软雅黑", Font.PLAIN, 11));
-        page_size_label.setForeground(Theme.TEXT_HINT);
-        pagePanel.add(page_size_label);
-        allComs.put("page_size_label", page_size_label);
+        JLabel pageSizeLabel = new JLabel("每页 " + size + " 条");
+        pageSizeLabel.setFont(new Font("微软雅黑", Font.PLAIN, 11));
+        pageSizeLabel.setForeground(Theme.TEXT_HINT);
+        pagePanel.add(pageSizeLabel);
+        allComs.put("page_size_label", pageSizeLabel);
 
         pagePanel.add(Box.createHorizontalStrut(16));
 
-        JButton previous_page_button = Theme.createFlatButton("◀ 上一页");
-        previous_page_button.setBorder(BorderFactory.createEmptyBorder(4, 12, 4, 12));
-        pagePanel.add(previous_page_button);
-        allComs.put("previous_page_button", previous_page_button);
+        JButton previousPageButton = Theme.createFlatButton("◀ 上一页");
+        previousPageButton.setBorder(BorderFactory.createEmptyBorder(4, 12, 4, 12));
+        pagePanel.add(previousPageButton);
+        allComs.put("previous_page_button", previousPageButton);
 
-        // 跳转页输入
         JTextField jumpField = new JTextField(3);
         jumpField.setFont(Theme.FONT_DEFAULT);
         jumpField.setHorizontalAlignment(JTextField.CENTER);
@@ -324,14 +321,13 @@ public class ContactWindow extends JFrame {
         pagePanel.add(new JLabel("页"));
         allComs.put("jumpField", jumpField);
 
-        JButton next_page_button = Theme.createFlatButton("下一页 ▶");
-        next_page_button.setBorder(BorderFactory.createEmptyBorder(4, 12, 4, 12));
-        pagePanel.add(next_page_button);
-        allComs.put("next_page_button", next_page_button);
+        JButton nextPageButton = Theme.createFlatButton("下一页 ▶");
+        nextPageButton.setBorder(BorderFactory.createEmptyBorder(4, 12, 4, 12));
+        pagePanel.add(nextPageButton);
+        allComs.put("next_page_button", nextPageButton);
 
         footerPanel.add(pagePanel, BorderLayout.EAST);
 
-        // ====== 组装 ======
         contentPanel = new JPanel(new BorderLayout(0, 0));
         contentPanel.setBackground(Theme.BG);
         contentPanel.add(searchCardPanel, BorderLayout.NORTH);
@@ -353,44 +349,39 @@ public class ContactWindow extends JFrame {
     private void initActionListeners() {
         JTable table = (JTable) allComs.get("table");
 
-        // 搜索按钮
         ((JButton) allComs.get("search_button")).addActionListener(e -> {
-            current = 1;
-            DefaultTableModel model = (DefaultTableModel) allComs.get("model");
-            initTableData(model, getSearchMap());
-        });
-
-        // 重置按钮
-        ((JButton) allComs.get("reset_button")).addActionListener(e -> {
-            ((JTextField) allComs.get("c_name_textField")).setText("");
-            ((JTextField) allComs.get("c_company_textField")).setText("");
-            ((JComboBox<?>) allComs.get("c_nickname_comboBox")).setSelectedIndex(0);
-            ((JComboBox<?>) allComs.get("c_group_name_comboBox")).setSelectedIndex(0);
             current = 1;
             initTableData((DefaultTableModel) allComs.get("model"), getSearchMap());
         });
 
-        // 姓名/公司输入框按 Enter 触发搜索
+        ((JButton) allComs.get("reset_button")).addActionListener(e -> {
+            ((JTextField) allComs.get("c_name_textField")).setText("");
+            ((JTextField) allComs.get("c_company_textField")).setText("");
+            ((JComboBox<?>) allComs.get("c_nickname_comboBox")).setSelectedIndex(0);
+            current = 1;
+            initTableData((DefaultTableModel) allComs.get("model"), getSearchMap());
+        });
+
         ActionListener enterSearch = e -> {
             current = 1;
             initTableData((DefaultTableModel) allComs.get("model"), getSearchMap());
         };
         ((JTextField) allComs.get("c_name_textField")).addActionListener(enterSearch);
         ((JTextField) allComs.get("c_company_textField")).addActionListener(enterSearch);
+        Component editor = ((JComboBox<?>) allComs.get("c_nickname_comboBox")).getEditor().getEditorComponent();
+        if (editor instanceof JTextField) {
+            ((JTextField) editor).addActionListener(enterSearch);
+        }
 
-        // 删除按钮
         ((JButton) allComs.get("del_button")).addActionListener(e -> deleteSelected(table));
 
-        // 新增按钮
         ((JButton) allComs.get("add_button")).addActionListener(e -> {
             contactWindow.setVisible(false);
             new ContactEditWindow(contactWindow, null);
         });
 
-        // 修改按钮
         ((JButton) allComs.get("edit_button")).addActionListener(e -> openEditWindow(table));
 
-        // 表格双击 → 打开编辑窗口
         table.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
@@ -400,7 +391,6 @@ public class ContactWindow extends JFrame {
             }
         });
 
-        // 选中行时更新状态栏提示
         table.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
                 int row = table.getSelectedRow();
@@ -414,20 +404,16 @@ public class ContactWindow extends JFrame {
             }
         });
 
-        // Delete 键删除选中行
-        table.getInputMap(JComponent.WHEN_FOCUSED).put(
-                KeyStroke.getKeyStroke(KeyEvent.VK_DELETE, 0), "deleteRow");
+        table.getInputMap(JComponent.WHEN_FOCUSED).put(KeyStroke.getKeyStroke(KeyEvent.VK_DELETE, 0), "deleteRow");
         table.getActionMap().put("deleteRow", new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                // 正在编辑单元格时 Delete 不触发删除
                 if (!table.isEditing()) {
                     deleteSelected(table);
                 }
             }
         });
 
-        // 分页按钮
         ((JButton) allComs.get("previous_page_button")).addActionListener(e -> {
             if (current > 1) {
                 current--;
@@ -445,7 +431,6 @@ public class ContactWindow extends JFrame {
             }
         });
 
-        // 跳转页输入框：Enter 跳转
         ((JTextField) allComs.get("jumpField")).addActionListener(e -> {
             JTextField jf = (JTextField) allComs.get("jumpField");
             try {
@@ -464,24 +449,76 @@ public class ContactWindow extends JFrame {
         });
     }
 
-    /** 打开编辑窗口（从表格当前选中行读取数据） */
+    private JComboBox<String> createCategoryComboBox() {
+        JComboBox<String> cb = Theme.createComboBox(Utils.getDefaultContactCategories());
+        cb.setEditable(true);
+        cb.setSelectedIndex(0);
+        Component editor = cb.getEditor().getEditorComponent();
+        if (editor instanceof JTextField) {
+            JTextField textField = (JTextField) editor;
+            textField.setFont(Theme.FONT_DEFAULT);
+            textField.setBorder(BorderFactory.createEmptyBorder());
+        }
+        return cb;
+    }
+
+    private void schedulePageSizeRefresh() {
+        SwingUtilities.invokeLater(this::refreshForViewportSizeChange);
+    }
+
+    private void refreshForViewportSizeChange() {
+        if (adjustingPageSize || !(allComs.get("model") instanceof DefaultTableModel)) {
+            return;
+        }
+        int newSize = resolvePageSize();
+        if (newSize <= 0 || newSize == size) {
+            return;
+        }
+        adjustingPageSize = true;
+        try {
+            int oldSize = Math.max(1, size);
+            int firstRecordIndex = Math.max(0, (current - 1) * oldSize);
+            size = newSize;
+            current = firstRecordIndex / size + 1;
+            initTableData((DefaultTableModel) allComs.get("model"), getSearchMap());
+        } finally {
+            adjustingPageSize = false;
+        }
+    }
+
+    private int resolvePageSize() {
+        Object scrollPaneObj = allComs.get("table_scrollPane");
+        Object tableObj = allComs.get("table");
+        if (!(scrollPaneObj instanceof JScrollPane) || !(tableObj instanceof JTable)) {
+            return Math.max(1, size);
+        }
+        JScrollPane scrollPane = (JScrollPane) scrollPaneObj;
+        JTable table = (JTable) tableObj;
+        int viewportHeight = scrollPane.getViewport().getExtentSize().height;
+        if (viewportHeight <= 0) {
+            viewportHeight = table.getVisibleRect().height;
+        }
+        if (viewportHeight <= 0) {
+            return Math.max(1, size);
+        }
+        int rowHeight = Math.max(1, table.getRowHeight());
+        return Math.max(1, viewportHeight / rowHeight);
+    }
+
     private void openEditWindow(JTable table) {
         if (table.isEditing()) table.getCellEditor().stopCellEditing();
         int row = table.getSelectedRow();
         if (row >= 0) {
             Map<String, Object> map = new HashMap<>();
-            map.put("c_id",       table.getModel().getValueAt(row, 0));
-            map.put("c_name",     table.getModel().getValueAt(row, 1));
-            // 分类列显示中文名，需反查 propMap key 传给编辑窗口
-            map.put("c_nickname", getPropValue("c_nickname", safeStr(table.getModel().getValueAt(row, 2))));
-            map.put("c_phone",    table.getModel().getValueAt(row, 3));
-            map.put("c_email",    table.getModel().getValueAt(row, 4));
-            map.put("c_address",  table.getModel().getValueAt(row, 5));
-            map.put("c_birthday", table.getModel().getValueAt(row, 6));
-            map.put("c_company",  table.getModel().getValueAt(row, 7));
-            map.put("c_job_title",table.getModel().getValueAt(row, 8));
-            map.put("c_group_name", getPropValue("c_group_name", safeStr(table.getModel().getValueAt(row, 9))));
-            map.put("notes",      table.getModel().getValueAt(row, 10));
+            map.put("c_id", table.getModel().getValueAt(row, 0));
+            map.put("c_name", table.getModel().getValueAt(row, 1));
+            map.put("c_nickname", safeStr(table.getModel().getValueAt(row, 2)));
+            map.put("c_phone", table.getModel().getValueAt(row, 3));
+            map.put("c_email", table.getModel().getValueAt(row, 4));
+            map.put("c_address", table.getModel().getValueAt(row, 5));
+            map.put("c_company", table.getModel().getValueAt(row, 6));
+            map.put("c_job_title", table.getModel().getValueAt(row, 7));
+            map.put("notes", table.getModel().getValueAt(row, 8));
             contactWindow.setVisible(false);
             new ContactEditWindow(contactWindow, map);
         } else {
@@ -489,7 +526,6 @@ public class ContactWindow extends JFrame {
         }
     }
 
-    /** 删除选中行 */
     private void deleteSelected(JTable table) {
         if (table.isEditing()) table.getCellEditor().stopCellEditing();
         int row = table.getSelectedRow();
@@ -510,64 +546,74 @@ public class ContactWindow extends JFrame {
     }
 
     private void updatePagingData() {
-        JLabel page_num_label = (JLabel) allComs.get("page_num_label");
-        page_num_label.setText("第 " + current + " 页 / 共 " + pages + " 页");
-        JLabel page_size_label = (JLabel) allComs.get("page_size_label");
-        page_size_label.setText("每页 " + size + " 条");
-        JLabel page_total_label = (JLabel) allComs.get("sum_label");
-        page_total_label.setText("共 " + total + " 条记录");
+        ((JLabel) allComs.get("page_num_label")).setText("第 " + current + " 页 / 共 " + pages + " 页");
+        ((JLabel) allComs.get("page_size_label")).setText("每页 " + size + " 条");
+        ((JLabel) allComs.get("sum_label")).setText("共 " + total + " 条记录");
     }
 
     private void initPropMap() {
-        // 分类映射（复用 c_nickname 字段）
-        Map<String, String> c_nickname_map = new LinkedHashMap<>();
-        c_nickname_map.put("1", "伙伴");
-        c_nickname_map.put("2", "家人");
-        c_nickname_map.put("3", "亲戚");
-        c_nickname_map.put("4", "朋友");
-        c_nickname_map.put("5", "同事");
-        c_nickname_map.put("6", "客户");
-        c_nickname_map.put("7", "其他");
-        propMap.put("c_nickname", c_nickname_map);
-
-        // 分组映射
-        Map<String, String> c_group_name_map = new LinkedHashMap<>();
-        c_group_name_map.put("1", "家人");
-        c_group_name_map.put("2", "亲戚");
-        c_group_name_map.put("3", "朋友");
-        c_group_name_map.put("4", "其他");
-        propMap.put("c_group_name", c_group_name_map);
+        propMap.clear();
+        Map<String, String> cNicknameMap = new LinkedHashMap<>();
+        cNicknameMap.put("1", "伙伴");
+        cNicknameMap.put("2", "家人");
+        cNicknameMap.put("3", "亲戚");
+        cNicknameMap.put("4", "朋友");
+        cNicknameMap.put("5", "同事");
+        cNicknameMap.put("6", "客户");
+        cNicknameMap.put("7", "其他");
+        propMap.put("c_nickname", cNicknameMap);
     }
 
     public String getProp(String prop, String index) {
-        if (propMap.containsKey(prop)) {
-            Map<String, String> m = propMap.get(prop);
-            if (m != null && m.get(index) != null) return m.get(index);
+        if (Utils.isBlank(index)) {
+            return "";
         }
-        return "";
+        if (propMap.containsKey(prop)) {
+            Map<String, String> map = propMap.get(prop);
+            if (map != null && map.get(index) != null) {
+                return map.get(index);
+            }
+        }
+        return Utils.normalizeCategoryValue(index);
     }
 
     public String getPropValue(String prop, String name) {
+        String normalized = "c_nickname".equals(prop) ? Utils.normalizeCategoryValue(name) : (name == null ? "" : name.trim());
+        if (Utils.isBlank(normalized)) {
+            return "";
+        }
         if (propMap.containsKey(prop)) {
             Map<String, String> map = propMap.get(prop);
-            if (map != null && map.containsValue(name)) {
-                AtomicReference<String> index = new AtomicReference<>("");
-                map.forEach((key, value) -> {
-                    if (name.equals(value)) index.set(key);
-                });
-                return index.get();
+            if (map != null) {
+                for (Map.Entry<String, String> entry : map.entrySet()) {
+                    if (normalized.equals(entry.getValue())) {
+                        return entry.getKey();
+                    }
+                }
             }
         }
-        return "";
+        return normalized;
     }
 
     public void showWindow() {
         this.setVisible(true);
+        int resolvedSize = resolvePageSize();
+        if (resolvedSize > 0) {
+            size = resolvedSize;
+        }
         initTableData((DefaultTableModel) allComs.get("model"), getSearchMap());
     }
 
     private void initTableData(DefaultTableModel model, Map<String, Object> map) {
-        // 移除旧监听器，防止数据填充时误触发 UPDATE
+        if (!adjustingPageSize) {
+            int resolvedSize = resolvePageSize();
+            if (resolvedSize > 0 && resolvedSize != size) {
+                int firstRecordIndex = Math.max(0, (current - 1) * Math.max(1, size));
+                size = resolvedSize;
+                current = firstRecordIndex / size + 1;
+            }
+        }
+
         if (tableEditListener != null) {
             model.removeTableModelListener(tableEditListener);
             tableEditListener = null;
@@ -579,16 +625,16 @@ public class ContactWindow extends JFrame {
         Set<String> likeFields = new HashSet<>(Arrays.asList("c_name", "c_company"));
 
         try {
-            StringBuilder sql    = new StringBuilder("select contact.* from contact where 1=1");
+            StringBuilder sql = new StringBuilder("select contact.* from contact where 1=1");
             StringBuilder sqlSum = new StringBuilder("select count(1) as total from contact where 1=1");
             map.forEach((key, value) -> {
-                if (!Utils.isBlank(value.toString())) {
+                String text = value == null ? "" : value.toString();
+                if (!Utils.isBlank(text)) {
+                    String safe = text.replace("'", "''");
                     if (likeFields.contains(key)) {
-                        String safe = value.toString().replace("'", "''");
                         sql.append(" and ").append(key).append(" like '%").append(safe).append("%'");
                         sqlSum.append(" and ").append(key).append(" like '%").append(safe).append("%'");
                     } else {
-                        String safe = value.toString().replace("'", "''");
                         sql.append(" and ").append(key).append("='").append(safe).append("'");
                         sqlSum.append(" and ").append(key).append("='").append(safe).append("'");
                     }
@@ -600,7 +646,7 @@ public class ContactWindow extends JFrame {
             boolean updatePage = false;
             if (rsSum.next()) {
                 total = rsSum.getInt("total");
-                pages = (int) Math.ceil(total * 1.0 / size);
+                pages = (int) Math.ceil(total * 1.0 / Math.max(1, size));
                 if (pages == 0) pages = 1;
                 if (current > pages) {
                     current = pages;
@@ -622,31 +668,26 @@ public class ContactWindow extends JFrame {
                         rs.getString("c_phone"),
                         rs.getString("c_email"),
                         rs.getString("c_address"),
-                        rs.getString("c_birthday"),
                         rs.getString("c_company"),
                         rs.getString("c_job_title"),
-                        getProp("c_group_name", rs.getString("c_group_name")),
-                        rs.getString("notes"),
+                        rs.getString("notes")
                 });
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
 
-        // 数据加载完毕，注册就地编辑保存监听器
         tableEditListener = new TableModelListener() {
             private final String[] colFields = {
-                null,           // 0: 编号（不可编辑）
-                "c_name",       // 1: 姓名
-                null,           // 2: 分类（不可编辑）
-                "c_phone",      // 3: 电话
-                "c_email",      // 4: 邮箱
-                "c_address",    // 5: 地址
-                "c_birthday",   // 6: 生日
-                "c_company",    // 7: 公司
-                "c_job_title",  // 8: 岗位
-                null,           // 9: 分组（不可编辑）
-                "notes"         // 10: 备注
+                    null,
+                    "c_name",
+                    null,
+                    "c_phone",
+                    "c_email",
+                    "c_address",
+                    "c_company",
+                    "c_job_title",
+                    "notes"
             };
 
             @Override
@@ -679,18 +720,22 @@ public class ContactWindow extends JFrame {
 
     private Map<String, Object> getSearchMap() {
         Map<String, Object> map = new HashMap<>();
-        map.put("c_name",       getText("c_name_textField", null));
-        map.put("c_nickname",   getText("c_nickname_comboBox", "c_nickname"));
-        map.put("c_company",    getText("c_company_textField", null));
-        map.put("c_group_name", getText("c_group_name_comboBox", "c_group_name"));
+        map.put("c_name", getText("c_name_textField", null));
+        map.put("c_nickname", getText("c_nickname_comboBox", "c_nickname"));
+        map.put("c_company", getText("c_company_textField", null));
         return map;
     }
 
     private String getText(String name, String prop) {
-        if (allComs.containsKey(name)) {
-            Object o = allComs.get(name);
-            if (o instanceof JTextField)  return ((JTextField) o).getText();
-            if (o instanceof JComboBox)   return getPropValue(prop, ((JComboBox<?>) o).getSelectedItem().toString());
+        Object o = allComs.get(name);
+        if (o instanceof JTextField) {
+            return ((JTextField) o).getText();
+        }
+        if (o instanceof JComboBox) {
+            JComboBox<?> comboBox = (JComboBox<?>) o;
+            Object item = comboBox.isEditable() ? comboBox.getEditor().getItem() : comboBox.getSelectedItem();
+            String value = item == null ? "" : item.toString().trim();
+            return prop == null ? value : getPropValue(prop, value);
         }
         return "";
     }

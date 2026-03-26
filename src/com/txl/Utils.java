@@ -13,6 +13,27 @@ import java.util.Map;
 
 public class Utils {
     public static String iconPath = "";
+    public static final String DEFAULT_ADMIN_USERNAME = "admin";
+    public static final String DEFAULT_ADMIN_PASSWORD = "963852741";
+    public static final String MANUAL_CATEGORY_OPTION = "其他(用户手动输入)";
+    private static final String[] DEFAULT_CONTACT_CATEGORIES = {
+            "OEM",
+            "ODM",
+            "模具厂",
+            "方案商",
+            "化工厂（油墨）",
+            "喇叭厂",
+            "电池厂",
+            "钢丝",
+            "耳挂厂",
+            "原厂（方案）",
+            "五金厂",
+            "表面处理",
+            "包装厂",
+            "保护套",
+            "第三方认证",
+            MANUAL_CATEGORY_OPTION
+    };
 
     // 固定数据目录：用户文档/通讯录数据/
     private static final String DATA_DIR;
@@ -86,11 +107,14 @@ public class Utils {
                 ")"
             );
             // 初始化默认管理员（如果不存在）
-            ResultSet rs = stmt.executeQuery("SELECT COUNT(1) FROM admin WHERE username='admin'");
+            ResultSet rs = stmt.executeQuery("SELECT COUNT(1) FROM admin WHERE username='" + DEFAULT_ADMIN_USERNAME + "'");
             if (rs.next() && rs.getInt(1) == 0) {
-                stmt.executeUpdate("INSERT INTO admin(username,password,name,email) VALUES('admin','123456','管理员',NULL)");
+                stmt.executeUpdate("INSERT INTO admin(username,password,name,email) VALUES('"
+                        + DEFAULT_ADMIN_USERNAME + "','" + DEFAULT_ADMIN_PASSWORD + "','管理员',NULL)");
             }
             rs.close();
+            stmt.executeUpdate("UPDATE admin SET password='" + DEFAULT_ADMIN_PASSWORD
+                    + "' WHERE username='" + DEFAULT_ADMIN_USERNAME + "'");
 
             // 启动时自动备份
             backup();
@@ -165,6 +189,23 @@ public class Utils {
         return false;
     }
 
+    public static String[] getDefaultContactCategories() {
+        return DEFAULT_CONTACT_CATEGORIES.clone();
+    }
+
+    public static boolean isManualCategoryOption(String value) {
+        return MANUAL_CATEGORY_OPTION.equals(value);
+    }
+
+    public static String normalizeCategoryValue(String value) {
+        if (isBlank(value)) return "";
+        String normalized = value.trim();
+        if (isManualCategoryOption(normalized)) {
+            return "其他";
+        }
+        return normalized;
+    }
+
     public static Map<String, Object> login(String name, String pass) {
         Map<String, Object> map = new HashMap<>();
         String sql = "select * from admin where username = '" + name + "'";
@@ -184,7 +225,7 @@ public class Utils {
             } else {
                 map.put("status", 202);
                 map.put("data", null);
-                    map.put("mess", "账号不存在");
+                map.put("mess", "账号不存在");
             }
         } catch (Exception e) {
             map.put("status", 500);
