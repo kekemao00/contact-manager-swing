@@ -5,6 +5,8 @@ import java.awt.*;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import java.awt.event.KeyEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -18,6 +20,12 @@ public class ContactEditWindow extends JFrame {
 
     public ContactEditWindow(ContactWindow contactWindowTemp, Map<String, Object> map) {
         this.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        this.addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosed(WindowEvent e) {
+                focusParentWindow(false);
+            }
+        });
         this.contactEditWindow = this;
         this.contactWindow = contactWindowTemp;
         boolean isEdit = map != null;
@@ -184,15 +192,10 @@ public class ContactEditWindow extends JFrame {
         submitButton.setPreferredSize(new Dimension(100, 38));
         buttonPanel.add(submitButton);
 
-        cancelButton.addActionListener(e -> {
-            contactEditWindow.dispose();
-            contactWindow.showWindow();
-        });
+        cancelButton.addActionListener(e -> closeWindow(false));
 
-        getRootPane().registerKeyboardAction(e -> {
-            contactEditWindow.dispose();
-            contactWindow.showWindow();
-        }, KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_IN_FOCUSED_WINDOW);
+        getRootPane().registerKeyboardAction(e -> closeWindow(false),
+                KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_IN_FOCUSED_WINDOW);
 
         getRootPane().setDefaultButton(submitButton);
 
@@ -239,8 +242,7 @@ public class ContactEditWindow extends JFrame {
                     affected = statement.executeUpdate(sql);
                 }
                 if (affected > 0) {
-                    contactEditWindow.dispose();
-                    contactWindow.showWindow();
+                    closeWindow(true);
                 } else {
                     Theme.showMessage(formPanel, isEdit ? "修改失败" : "添加失败", -1);
                 }
@@ -258,9 +260,25 @@ public class ContactEditWindow extends JFrame {
         mainPanel.add(buttonPanel, BorderLayout.SOUTH);
         setContentPane(mainPanel);
 
-        this.setLocationRelativeTo(null);
+        this.setLocationRelativeTo(contactWindow);
         this.setVisible(true);
+        this.toFront();
         SwingUtilities.invokeLater(() -> focusOrder.get(0).requestFocusInWindow());
+    }
+
+    private void closeWindow(boolean refreshParent) {
+        contactEditWindow.dispose();
+        if (refreshParent) {
+            contactWindow.showWindow();
+        }
+    }
+
+    private void focusParentWindow(boolean refreshParent) {
+        if (refreshParent) {
+            contactWindow.showWindow();
+        }
+        contactWindow.toFront();
+        contactWindow.requestFocus();
     }
 
     private JComboBox<String> createCategoryComboBox() {

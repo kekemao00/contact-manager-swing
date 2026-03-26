@@ -392,10 +392,7 @@ public class ContactWindow extends JFrame {
 
         ((JButton) allComs.get("del_button")).addActionListener(e -> deleteSelected(table));
 
-        ((JButton) allComs.get("add_button")).addActionListener(e -> {
-            contactWindow.setVisible(false);
-            new ContactEditWindow(contactWindow, null);
-        });
+        ((JButton) allComs.get("add_button")).addActionListener(e -> new ContactEditWindow(contactWindow, null));
 
         ((JButton) allComs.get("edit_button")).addActionListener(e -> openEditWindow(table));
         ((JButton) allComs.get("export_button")).addActionListener(e -> exportContacts());
@@ -609,7 +606,6 @@ public class ContactWindow extends JFrame {
             map.put("c_company", table.getModel().getValueAt(row, 6));
             map.put("c_job_title", table.getModel().getValueAt(row, 7));
             map.put("notes", table.getModel().getValueAt(row, 8));
-            contactWindow.setVisible(false);
             new ContactEditWindow(contactWindow, map);
         } else {
             Theme.showMessage(contentPanel, "请先选择一条记录", -1);
