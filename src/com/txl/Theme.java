@@ -278,18 +278,19 @@ public class Theme {
         return lbl;
     }
 
-    /** 创建表格 */
+    /** 创建表格（isCellEditable 由调用方的 DefaultTableModel 匿名子类控制，此处不覆盖） */
     public static JTable createTable(DefaultTableModel model) {
         JTable table = new JTable(model) {
-            @Override
-            public boolean isCellEditable(int row, int column) {
-                return false;
-            }
             @Override
             public Component prepareRenderer(TableCellRenderer renderer, int row, int column) {
                 Component c = super.prepareRenderer(renderer, row, column);
                 if (!isRowSelected(row)) {
                     c.setBackground(row % 2 == 0 ? CARD_BG : TABLE_ALT_ROW);
+                    c.setForeground(TEXT_PRIMARY);
+                } else {
+                    // 选中行：主色浅蓝背景，文字保持深色
+                    c.setBackground(new Color(232, 240, 254));
+                    c.setForeground(TEXT_PRIMARY);
                 }
                 if (c instanceof JLabel) {
                     ((JLabel) c).setBorder(BorderFactory.createEmptyBorder(0, 8, 0, 8));
@@ -301,8 +302,11 @@ public class Theme {
         table.setShowGrid(true);
         table.setGridColor(BORDER);
         table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        table.setAutoResizeMode(JTable.AUTO_RESIZE_LAST_COLUMN);
         table.getTableHeader().setPreferredSize(new Dimension(table.getTableHeader().getWidth(), 40));
         table.getTableHeader().setReorderingAllowed(false);
+        // 支持键盘导航
+        table.setSurrendersFocusOnKeystroke(true);
 
         // 表头样式
         JTableHeader header = table.getTableHeader();
@@ -315,7 +319,7 @@ public class Theme {
                 setBackground(TABLE_HEADER);
                 setForeground(TEXT_SECONDARY);
                 setBorder(BorderFactory.createCompoundBorder(
-                        BorderFactory.createMatteBorder(0, 0, 1, 0, BORDER),
+                        BorderFactory.createMatteBorder(0, 0, 1, 1, BORDER),
                         BorderFactory.createEmptyBorder(0, 8, 0, 8)
                 ));
                 setHorizontalAlignment(JLabel.LEFT);
