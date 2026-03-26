@@ -1,20 +1,24 @@
 package com.txl;
 
 import javax.swing.*;
+import javax.swing.filechooser.FileNameExtensionFilter;
 import javax.swing.event.TableModelEvent;
 import javax.swing.event.TableModelListener;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.*;
+import java.io.File;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -24,6 +28,7 @@ public class ContactWindow extends JFrame {
     private ContactWindow contactWindow;
     private JPanel contentPanel;
     private final Map<String, Object> allComs = new HashMap<>();
+    private final List<String> visibleContactIds = new ArrayList<>();
     private static final Map<String, Map<String, String>> propMap = new HashMap<>();
     public Integer current = 1;
     public Integer pages = 1;
@@ -75,6 +80,8 @@ public class ContactWindow extends JFrame {
             ((JButton) allComs.get("del_button")).setVisible(false);
             ((JButton) allComs.get("add_button")).setVisible(false);
             ((JButton) allComs.get("edit_button")).setVisible(false);
+            ((JButton) allComs.get("export_button")).setVisible(false);
+            ((JButton) allComs.get("import_button")).setVisible(false);
         }
         schedulePageSizeRefresh();
     }
@@ -172,6 +179,16 @@ public class ContactWindow extends JFrame {
         delButton.setPreferredSize(new Dimension(90, 34));
         actionRow.add(delButton);
         allComs.put("del_button", delButton);
+
+        JButton exportButton = Theme.createFlatButton("⬇ 导出");
+        exportButton.setPreferredSize(new Dimension(96, 34));
+        actionRow.add(exportButton);
+        allComs.put("export_button", exportButton);
+
+        JButton importButton = Theme.createFlatButton("⬆ 导入");
+        importButton.setPreferredSize(new Dimension(96, 34));
+        actionRow.add(importButton);
+        allComs.put("import_button", importButton);
 
         JButton selectButton = Theme.createPrimaryButton("确认");
         selectButton.setPreferredSize(new Dimension(90, 34));
@@ -381,6 +398,8 @@ public class ContactWindow extends JFrame {
         });
 
         ((JButton) allComs.get("edit_button")).addActionListener(e -> openEditWindow(table));
+        ((JButton) allComs.get("export_button")).addActionListener(e -> exportContacts());
+        ((JButton) allComs.get("import_button")).addActionListener(e -> importContacts());
 
         table.addMouseListener(new MouseAdapter() {
             @Override
@@ -462,6 +481,72 @@ public class ContactWindow extends JFrame {
         return cb;
     }
 
+    private JFileChooser createCsvFileChooser(String title) {
+        JFileChooser chooser = new JFileChooser();
+        chooser.setDialogTitle(title);
+        chooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
+        chooser.setAcceptAllFileFilterUsed(false);
+        chooser.setFileFilter(new FileNameExtensionFilter("CSV 文件 (*.csv)", "csv"));
+        return chooser;
+    }
+
+    private File ensureCsvExtension(File file) {
+        if (file == null) {
+            return null;
+        }
+        if (file.getName().toLowerCase().endsWith(".csv")) {
+            return file;
+        }
+        File parent = file.getParentFile();
+        return parent == null ? new File(file.getName() + ".csv") : new File(parent, file.getName() + ".csv");
+    }
+
+    private void exportContacts() {
+        JFileChooser chooser = createCsvFileChooser("导出联系人");
+        chooser.setSelectedFile(new File("通讯录导出_" + Utils.formTime(new Date(), "yyyyMMdd_HHmmss") + ".csv"));
+        if (chooser.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+
+        File file = ensureCsvExtension(chooser.getSelectedFile());
+        if (file.exists() && Theme.showConfirm(contentPanel, "目标文件已存在，是否覆盖？") != 0) {
+            return;
+        }
+
+        try {
+            int count = Utils.exportContactsToCsv(file, getSearchMap());
+            Theme.showMessage(contentPanel, "导出成功：" + file.getName() + "，共 " + count + " 条记录", 0);
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            Theme.showMessage(contentPanel, "导出失败：" + ex.getMessage(), -1);
+        }
+    }
+
+    private void importContacts() {
+        if (Theme.showConfirm(contentPanel, "导入会按编号更新已有记录，未匹配编号的记录将新增，是否继续？") != 0) {
+            return;
+        }
+
+        JFileChooser chooser = createCsvFileChooser("导入联系人");
+        if (chooser.showOpenDialog(this) != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+
+        try {
+            Utils.ImportResult result = Utils.importContactsFromCsv(chooser.getSelectedFile());
+            current = 1;
+            initTableData((DefaultTableModel) allComs.get("model"), getSearchMap());
+            String message = "导入完成：新增 " + result.inserted + " 条，更新 " + result.updated + " 条";
+            if (result.skipped > 0) {
+                message += "，跳过 " + result.skipped + " 条";
+            }
+            Theme.showMessage(contentPanel, message, result.skipped > 0 ? 1 : 0);
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            Theme.showMessage(contentPanel, "导入失败：" + ex.getMessage(), -1);
+        }
+    }
+
     private void schedulePageSizeRefresh() {
         SwingUtilities.invokeLater(this::refreshForViewportSizeChange);
     }
@@ -510,7 +595,7 @@ public class ContactWindow extends JFrame {
         int row = table.getSelectedRow();
         if (row >= 0) {
             Map<String, Object> map = new HashMap<>();
-            map.put("c_id", table.getModel().getValueAt(row, 0));
+            map.put("c_id", getContactIdAtRow(row));
             map.put("c_name", table.getModel().getValueAt(row, 1));
             map.put("c_nickname", safeStr(table.getModel().getValueAt(row, 2)));
             map.put("c_phone", table.getModel().getValueAt(row, 3));
@@ -532,7 +617,11 @@ public class ContactWindow extends JFrame {
         if (row >= 0) {
             int confirm = Theme.showConfirm(contentPanel, "确定要删除这条联系人记录吗？");
             if (confirm != 0) return;
-            String id = table.getModel().getValueAt(row, 0).toString();
+            String id = getContactIdAtRow(row);
+            if (Utils.isBlank(id)) {
+                Theme.showMessage(contentPanel, "未找到联系人编号", -1);
+                return;
+            }
             try {
                 Utils.getStatement().executeUpdate("delete from contact where c_id = '" + id + "'");
                 initTableData((DefaultTableModel) allComs.get("model"), getSearchMap());
@@ -618,6 +707,7 @@ public class ContactWindow extends JFrame {
             model.removeTableModelListener(tableEditListener);
             tableEditListener = null;
         }
+        visibleContactIds.clear();
         while (model.getRowCount() > 0) {
             model.removeRow(0);
         }
@@ -661,8 +751,10 @@ public class ContactWindow extends JFrame {
             sql.append(" limit ").append(start).append(",").append(size);
             ResultSet rs = statement.executeQuery(sql.toString());
             while (rs.next()) {
+                String contactId = rs.getString("c_id");
+                visibleContactIds.add(contactId);
                 model.addRow(new Object[]{
-                        rs.getString("c_id"),
+                        start + model.getRowCount() + 1,
                         rs.getString("c_name"),
                         getProp("c_nickname", rs.getString("c_nickname")),
                         rs.getString("c_phone"),
@@ -699,9 +791,8 @@ public class ContactWindow extends JFrame {
                 String dbField = colFields[col];
                 if (dbField == null) return;
 
-                Object idObj = model.getValueAt(row, 0);
-                if (idObj == null) return;
-                String id = idObj.toString();
+                String id = getContactIdAtRow(row);
+                if (Utils.isBlank(id)) return;
                 Object valObj = model.getValueAt(row, col);
                 String newVal = (valObj == null ? "" : valObj.toString()).replace("'", "''");
 
@@ -738,6 +829,13 @@ public class ContactWindow extends JFrame {
             return prop == null ? value : getPropValue(prop, value);
         }
         return "";
+    }
+
+    private String getContactIdAtRow(int row) {
+        if (row < 0 || row >= visibleContactIds.size()) {
+            return "";
+        }
+        return visibleContactIds.get(row);
     }
 
     private String safeStr(Object o) {
