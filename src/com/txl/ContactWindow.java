@@ -6,6 +6,8 @@ import java.util.*;
 import javax.swing.*;
 import java.sql.ResultSet;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.event.TableModelListener;
+import javax.swing.event.TableModelEvent;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -20,10 +22,13 @@ public class ContactWindow extends JFrame {
     private Map<String, Object> allComs = new HashMap<>();
     private static Map<String, Map<String, String>> propMap = new HashMap<>();
     public Integer current = 1;
-    public Integer pages = 10;
-    public Integer size = 10;
+    public Integer pages = 1;
+    public Integer size = 50;
     public Integer total = 0;
     public Integer mode = 0;
+
+    // 直接编辑时触发 DB 保存的监听器引用，每次刷新前先移除旧的
+    private TableModelListener tableEditListener;
 
     public ContactWindow() {
         initWindow();
@@ -76,8 +81,10 @@ public class ContactWindow extends JFrame {
 
     private void initWindow() {
         this.contactWindow = this;
-        this.setResizable(false);
+        this.setResizable(true);
         this.setTitle("通讯录管理");
+        // 启动时最大化全屏
+        this.setExtendedState(JFrame.MAXIMIZED_BOTH);
         this.setSize(960, 660);
         getContentPane().setBackground(Theme.BG);
 
@@ -130,24 +137,29 @@ public class ContactWindow extends JFrame {
         searchIcon.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 16));
         searchRow.add(searchIcon);
 
+        // 姓名（保留，模糊搜索）
         searchRow.add(Theme.createLabel("姓名："));
         JTextField c_name_textField = Theme.createTextField("请输入姓名");
         c_name_textField.setPreferredSize(new Dimension(120, 34));
         searchRow.add(c_name_textField);
         allComs.put("c_name_textField", c_name_textField);
 
-        searchRow.add(Theme.createLabel("昵称："));
-        JTextField c_nickname_textField = Theme.createTextField("请输入昵称");
-        c_nickname_textField.setPreferredSize(new Dimension(120, 34));
-        searchRow.add(c_nickname_textField);
-        allComs.put("c_nickname_textField", c_nickname_textField);
+        // 分类（原昵称位，改为下拉选择）
+        searchRow.add(Theme.createLabel("分类："));
+        String[] c_nickname_options = {"全部", "伙伴", "家人", "亲戚", "朋友", "同事", "客户", "其他"};
+        JComboBox<String> c_nickname_comboBox = Theme.createComboBox(c_nickname_options);
+        c_nickname_comboBox.setPreferredSize(new Dimension(100, 34));
+        searchRow.add(c_nickname_comboBox);
+        allComs.put("c_nickname_comboBox", c_nickname_comboBox);
 
-        searchRow.add(Theme.createLabel("电话："));
-        JTextField c_phone_textField = Theme.createTextField("请输入电话");
-        c_phone_textField.setPreferredSize(new Dimension(130, 34));
-        searchRow.add(c_phone_textField);
-        allComs.put("c_phone_textField", c_phone_textField);
+        // 公司（原电话位，模糊搜索）
+        searchRow.add(Theme.createLabel("公司："));
+        JTextField c_company_textField = Theme.createTextField("请输入公司名称");
+        c_company_textField.setPreferredSize(new Dimension(150, 34));
+        searchRow.add(c_company_textField);
+        allComs.put("c_company_textField", c_company_textField);
 
+        // 分组（保留）
         searchRow.add(Theme.createLabel("分组："));
         String[] c_group_name_options = {"全部", "家人", "亲戚", "朋友", "其他"};
         JComboBox<String> c_group_name_comboBox = Theme.createComboBox(c_group_name_options);
@@ -195,12 +207,18 @@ public class ContactWindow extends JFrame {
         tablePanel.setBackground(Theme.BG);
         tablePanel.setBorder(BorderFactory.createEmptyBorder(8, 16, 8, 16));
 
-        DefaultTableModel model = new DefaultTableModel();
+        // 枚举列（编号0、分类2、分组9）禁止直接编辑，文本列允许在表格内直接修改
+        DefaultTableModel model = new DefaultTableModel() {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return column != 0 && column != 2 && column != 9;
+            }
+        };
         JTable table = Theme.createTable(model);
         allComs.put("model", model);
         allComs.put("table", table);
         model.setColumnIdentifiers(new Object[]{
-                "编号", "姓名", "昵称", "电话", "邮箱", "地址", "生日", "公司", "岗位", "分组", "备注"
+                "编号", "姓名", "分类", "电话", "邮箱", "地址", "生日", "公司", "岗位", "分组", "备注"
         });
         JScrollPane scrollPane = new JScrollPane(table);
         scrollPane.setBorder(BorderFactory.createLineBorder(Theme.BORDER));
@@ -233,7 +251,7 @@ public class ContactWindow extends JFrame {
 
         pagePanel.add(Box.createHorizontalStrut(8));
 
-        JLabel page_size_label = new JLabel("每页 10 条");
+        JLabel page_size_label = new JLabel("每页 50 条");
         page_size_label.setFont(new Font("微软雅黑", Font.PLAIN, 11));
         page_size_label.setForeground(Theme.TEXT_HINT);
         pagePanel.add(page_size_label);
@@ -254,13 +272,6 @@ public class ContactWindow extends JFrame {
         footerPanel.add(pagePanel, BorderLayout.EAST);
 
         // ====== 组装 ======
-        setLayout(new BorderLayout(0, 0));
-        add(headerPanel, BorderLayout.NORTH);
-        add(searchCardPanel, BorderLayout.CENTER);
-        add(tablePanel, BorderLayout.CENTER);
-        add(footerPanel, BorderLayout.SOUTH);
-
-        // 用 BoxLayout 垂直排列中间和底部
         JPanel contentPanel = new JPanel();
         contentPanel.setLayout(new BorderLayout(0, 0));
         contentPanel.setBackground(Theme.BG);
@@ -268,6 +279,7 @@ public class ContactWindow extends JFrame {
         contentPanel.add(tablePanel, BorderLayout.CENTER);
         contentPanel.add(footerPanel, BorderLayout.SOUTH);
 
+        setLayout(new BorderLayout(0, 0));
         add(headerPanel, BorderLayout.NORTH);
         add(contentPanel, BorderLayout.CENTER);
 
@@ -283,6 +295,7 @@ public class ContactWindow extends JFrame {
         ((JButton) allComs.get("search_button")).addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
+                current = 1;
                 DefaultTableModel model = (DefaultTableModel) allComs.get("model");
                 initTableData(model, getSearchMap());
             }
@@ -291,6 +304,8 @@ public class ContactWindow extends JFrame {
             @Override
             public void actionPerformed(ActionEvent e) {
                 JTable table = (JTable) allComs.get("table");
+                // 停止当前编辑，避免删除时触发 cellEditing 事件
+                if (table.isEditing()) table.getCellEditor().stopCellEditing();
                 int row = table.getSelectedRow();
                 if (row >= 0) {
                     int selectIndex = Theme.showConfirm(panel, "确定要删除这条联系人记录吗？");
@@ -322,12 +337,15 @@ public class ContactWindow extends JFrame {
             @Override
             public void actionPerformed(ActionEvent e) {
                 JTable table = (JTable) allComs.get("table");
+                // 先停止编辑，确保当前单元格修改已保存
+                if (table.isEditing()) table.getCellEditor().stopCellEditing();
                 int row = table.getSelectedRow();
                 if (row >= 0) {
                     Map<String, Object> map = new HashMap<>();
                     map.put("c_id", table.getModel().getValueAt(row, 0));
                     map.put("c_name", table.getModel().getValueAt(row, 1));
-                    map.put("c_nickname", table.getModel().getValueAt(row, 2));
+                    // 分类列存的是显示名，需反查 propMap key 传给编辑窗口
+                    map.put("c_nickname", getPropValue("c_nickname", (table.getModel().getValueAt(row, 2)).toString()));
                     map.put("c_phone", table.getModel().getValueAt(row, 3));
                     map.put("c_email", table.getModel().getValueAt(row, 4));
                     map.put("c_address", table.getModel().getValueAt(row, 5));
@@ -377,6 +395,18 @@ public class ContactWindow extends JFrame {
     }
 
     private void initPropMap() {
+        // 分类映射（复用 c_nickname 字段存储）
+        Map<String, String> c_nickname_map = new LinkedHashMap<>();
+        c_nickname_map.put("1", "伙伴");
+        c_nickname_map.put("2", "家人");
+        c_nickname_map.put("3", "亲戚");
+        c_nickname_map.put("4", "朋友");
+        c_nickname_map.put("5", "同事");
+        c_nickname_map.put("6", "客户");
+        c_nickname_map.put("7", "其他");
+        propMap.put("c_nickname", c_nickname_map);
+
+        // 分组映射
         Map<String, String> c_group_name_map = new HashMap<>();
         c_group_name_map.put("1", "家人");
         c_group_name_map.put("2", "亲戚");
@@ -418,17 +448,34 @@ public class ContactWindow extends JFrame {
     }
 
     private void initTableData(DefaultTableModel model, Map<String, Object> map) {
+        // 先移除旧的直接编辑监听器，避免加载数据时触发 UPDATE
+        if (tableEditListener != null) {
+            model.removeTableModelListener(tableEditListener);
+            tableEditListener = null;
+        }
+
         while (model.getRowCount() > 0) {
             model.removeRow(0);
         }
+
+        // 模糊搜索字段集合
+        Set<String> likeFields = new HashSet<>(Arrays.asList("c_name", "c_company"));
+
         Statement statement = Utils.getStatement();
         try {
             StringBuilder sql = new StringBuilder("select contact.* from contact where 1 = 1 ");
             StringBuilder sqlSum = new StringBuilder("select count(1) as total from contact where 1 = 1 ");
             map.forEach((key, value) -> {
                 if (!Utils.isBlank(value.toString())) {
-                    sql.append(" and " + key + " = '" + value + "'");
-                    sqlSum.append(" and " + key + " = '" + value + "'");
+                    if (likeFields.contains(key)) {
+                        // 模糊匹配
+                        sql.append(" and ").append(key).append(" like '%").append(value).append("%'");
+                        sqlSum.append(" and ").append(key).append(" like '%").append(value).append("%'");
+                    } else {
+                        // 精确匹配（枚举 key）
+                        sql.append(" and ").append(key).append(" = '").append(value).append("'");
+                        sqlSum.append(" and ").append(key).append(" = '").append(value).append("'");
+                    }
                 }
             });
             ResultSet resultSetSum = statement.executeQuery(sqlSum.toString());
@@ -449,13 +496,14 @@ public class ContactWindow extends JFrame {
             }
             if (updatePage) return;
             Integer start = (current - 1) * size;
-            sql.append(" limit " + start + "," + size + "");
+            sql.append(" limit ").append(start).append(",").append(size);
             ResultSet resultSet = statement.executeQuery(sql.toString());
             while (resultSet.next()) {
                 model.addRow(new Object[]{
                         resultSet.getString("c_id"),
                         resultSet.getString("c_name"),
-                        resultSet.getString("c_nickname"),
+                        // 分类：将 DB 存储的 key 转成显示名
+                        getProp("c_nickname", resultSet.getString("c_nickname")),
                         resultSet.getString("c_phone"),
                         resultSet.getString("c_email"),
                         resultSet.getString("c_address"),
@@ -469,18 +517,66 @@ public class ContactWindow extends JFrame {
         } catch (Exception e) {
             e.printStackTrace();
         }
+
+        // 数据加载完成后，注册直接编辑监听器，单元格修改后立即写入 DB
+        tableEditListener = new TableModelListener() {
+            // DB 字段名映射（index 对应列号，null 表示该列不需要写 DB）
+            private final String[] colFields = {
+                null,          // 0: 编号（不可编辑）
+                "c_name",      // 1: 姓名
+                null,          // 2: 分类（不可编辑，通过修改弹窗处理）
+                "c_phone",     // 3: 电话
+                "c_email",     // 4: 邮箱
+                "c_address",   // 5: 地址
+                "c_birthday",  // 6: 生日
+                "c_company",   // 7: 公司
+                "c_job_title", // 8: 岗位
+                null,          // 9: 分组（不可编辑）
+                "notes"        // 10: 备注
+            };
+
+            @Override
+            public void tableChanged(TableModelEvent e) {
+                if (e.getType() != TableModelEvent.UPDATE) return;
+                int row = e.getFirstRow();
+                int col = e.getColumn();
+                if (col <= 0 || row < 0 || col >= colFields.length) return;
+
+                String dbField = colFields[col];
+                if (dbField == null) return;
+
+                Object idObj = model.getValueAt(row, 0);
+                if (idObj == null) return;
+                String id = idObj.toString();
+
+                Object valObj = model.getValueAt(row, col);
+                String newVal = valObj == null ? "" : valObj.toString();
+
+                // 转义单引号，防止 SQL 注入
+                String safeVal = newVal.replace("'", "''");
+
+                try {
+                    String sql = "update contact set " + dbField + "='" + safeVal + "' where c_id='" + id + "'";
+                    Utils.getStatement().executeUpdate(sql);
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                    Theme.showMessage(panel, "保存失败：" + ex.getMessage(), -1);
+                }
+            }
+        };
+        model.addTableModelListener(tableEditListener);
     }
 
     private Map<String, Object> getSearchMap() {
         Map<String, Object> map = new HashMap<>();
-        String c_name_textField_text = getText("c_name_textField", null);
-        map.put("c_name", c_name_textField_text);
-        String c_nickname_textField_text = getText("c_nickname_textField", null);
-        map.put("c_nickname", c_nickname_textField_text);
-        String c_phone_textField_text = getText("c_phone_textField", null);
-        map.put("c_phone", c_phone_textField_text);
-        String c_group_name_comboBox_text = getText("c_group_name_comboBox", "c_group_name");
-        map.put("c_group_name", c_group_name_comboBox_text);
+        // 姓名（模糊）
+        map.put("c_name", getText("c_name_textField", null));
+        // 分类（精确，下拉选"全部"时 getPropValue 返回空串，SQL 不拼此条件）
+        map.put("c_nickname", getText("c_nickname_comboBox", "c_nickname"));
+        // 公司（模糊）
+        map.put("c_company", getText("c_company_textField", null));
+        // 分组（精确）
+        map.put("c_group_name", getText("c_group_name_comboBox", "c_group_name"));
         return map;
     }
 

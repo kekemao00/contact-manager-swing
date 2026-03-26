@@ -68,10 +68,10 @@ public class ContactEditWindow extends JFrame {
         keyLabel = new JLabel();
         keyTextField = c_id_textField;
 
-        // 字段定义
+        // 字段定义：c_nickname 改为"分类"，使用 comboBox
         String[][] fields = {
                 {"c_name",       "姓名",    "请输入姓名 *"},
-                {"c_nickname",   "昵称",    "请输入昵称"},
+                {"c_nickname",   "分类",    null},           // 改为下拉选择
                 {"c_phone",      "电话",    "请输入电话"},
                 {"c_email",      "邮箱",    "请输入邮箱"},
                 {"c_address",    "地址",    "请输入地址"},
@@ -88,7 +88,6 @@ public class ContactEditWindow extends JFrame {
             String placeholder = fields[i][2];
             int y = startY + i * (rowH + gap);
 
-            // 标签（必填字段加星号）
             boolean required = key.equals("c_name");
             JLabel lbl = new JLabel(label + (required ? " *" : ""));
             lbl.setFont(Theme.FONT_BOLD);
@@ -96,10 +95,17 @@ public class ContactEditWindow extends JFrame {
             lbl.setBounds(20, y + 8, labelW, 20);
             formPanel.add(lbl);
 
-            // 输入控件
             if (key.equals("c_group_name")) {
                 String[] options = {"家人", "亲戚", "朋友", "其他"};
                 JComboBox<String> cb = Theme.createComboBox(options);
+                Theme.setLocation(cb, 100, y, fieldW, rowH);
+                formPanel.add(cb);
+                allComs.put(key + "_comboBox", cb);
+            } else if (key.equals("c_nickname")) {
+                // 分类下拉，默认选"伙伴"
+                String[] options = {"伙伴", "家人", "亲戚", "朋友", "同事", "客户", "其他"};
+                JComboBox<String> cb = Theme.createComboBox(options);
+                cb.setSelectedItem("伙伴");
                 Theme.setLocation(cb, 100, y, fieldW, rowH);
                 formPanel.add(cb);
                 allComs.put(key + "_comboBox", cb);
@@ -109,7 +115,6 @@ public class ContactEditWindow extends JFrame {
                 formPanel.add(tf);
                 allComs.put(key + "_textField", tf);
 
-                // 焦点高亮
                 tf.addFocusListener(new FocusAdapter() {
                     @Override
                     public void focusGained(FocusEvent e) {
@@ -133,7 +138,6 @@ public class ContactEditWindow extends JFrame {
         if (map != null) {
             fillField("c_id_textField", map.get("c_id"));
             fillField("c_name_textField", map.get("c_name"));
-            fillField("c_nickname_textField", map.get("c_nickname"));
             fillField("c_phone_textField", map.get("c_phone"));
             fillField("c_email_textField", map.get("c_email"));
             fillField("c_address_textField", map.get("c_address"));
@@ -141,6 +145,12 @@ public class ContactEditWindow extends JFrame {
             fillField("c_company_textField", map.get("c_company"));
             fillField("c_job_title_textField", map.get("c_job_title"));
             fillField("notes_textField", map.get("notes"));
+            // 分类回填（map 中存的是 propMap key，如"1"）
+            if (!Utils.isNull(map.get("c_nickname"))) {
+                JComboBox<String> cb = (JComboBox<String>) allComs.get("c_nickname_comboBox");
+                cb.setSelectedItem(contactWindow.getProp("c_nickname", map.get("c_nickname").toString()));
+            }
+            // 分组回填
             if (!Utils.isNull(map.get("c_group_name"))) {
                 JComboBox<String> cb = (JComboBox<String>) allComs.get("c_group_name_comboBox");
                 cb.setSelectedItem(contactWindow.getProp("c_group_name", map.get("c_group_name").toString()));
@@ -179,7 +189,8 @@ public class ContactEditWindow extends JFrame {
                     Theme.showMessage(formPanel, "请输入姓名！", -1);
                     return;
                 }
-                String c_nickname_value = getTextField("c_nickname_textField");
+                // 分类：从 comboBox 取显示名，再通过 getPropValue 转成 DB key
+                String c_nickname_value = getComboBoxValue("c_nickname_comboBox", "c_nickname");
                 String c_phone_value = getTextField("c_phone_textField");
                 String c_email_value = getTextField("c_email_textField");
                 String c_address_value = getTextField("c_address_textField");
