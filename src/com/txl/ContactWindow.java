@@ -469,7 +469,12 @@ public class ContactWindow extends JFrame {
     }
 
     private JComboBox<String> createCategoryComboBox() {
-        JComboBox<String> cb = Theme.createComboBox(Utils.getDefaultContactCategories());
+        String[] defaultCategories = Utils.getDefaultContactCategories();
+        String[] searchOptions = new String[defaultCategories.length + 1];
+        searchOptions[0] = "";
+        System.arraycopy(defaultCategories, 0, searchOptions, 1, defaultCategories.length);
+
+        JComboBox<String> cb = Theme.createComboBox(searchOptions);
         cb.setEditable(true);
         cb.setSelectedIndex(0);
         Component editor = cb.getEditor().getEditorComponent();
