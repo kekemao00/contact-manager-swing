@@ -22,7 +22,8 @@ import java.util.Set;
 public class Utils {
     public static String iconPath = "";
     public static final String DEFAULT_ADMIN_USERNAME = "admin";
-    public static final String DEFAULT_ADMIN_PASSWORD = "963852741";
+    // 默认密码，首次启动时自动写入数据库；生产环境请修改
+    public static final String DEFAULT_ADMIN_PASSWORD = "admin123";
     public static final String MANUAL_CATEGORY_OPTION = "其他(用户手动输入)";
     private static final String[] DEFAULT_CONTACT_CATEGORIES = {
             "OEM",
