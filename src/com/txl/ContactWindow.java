@@ -9,6 +9,7 @@ import java.awt.*;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.*;
 import java.io.File;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.text.SimpleDateFormat;
@@ -132,23 +133,11 @@ public class ContactWindow extends JFrame {
         searchIcon.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 16));
         searchRow.add(searchIcon);
 
-        searchRow.add(Theme.createLabel("姓名："));
-        JTextField cNameTextField = Theme.createTextField("姓名");
-        cNameTextField.setPreferredSize(new Dimension(120, 34));
-        searchRow.add(cNameTextField);
-        allComs.put("c_name_textField", cNameTextField);
-
-        searchRow.add(Theme.createLabel("分类："));
-        JComboBox<String> cNicknameComboBox = createCategoryComboBox();
-        cNicknameComboBox.setPreferredSize(new Dimension(180, 34));
-        searchRow.add(cNicknameComboBox);
-        allComs.put("c_nickname_comboBox", cNicknameComboBox);
-
-        searchRow.add(Theme.createLabel("公司："));
-        JTextField cCompanyTextField = Theme.createTextField("公司名称");
-        cCompanyTextField.setPreferredSize(new Dimension(150, 34));
-        searchRow.add(cCompanyTextField);
-        allComs.put("c_company_textField", cCompanyTextField);
+        searchRow.add(Theme.createLabel("全局检索："));
+        JTextField keywordTextField = Theme.createTextField("输入姓名/电话/邮箱/分类/公司/岗位等关键词");
+        keywordTextField.setPreferredSize(new Dimension(360, 34));
+        searchRow.add(keywordTextField);
+        allComs.put("keyword_textField", keywordTextField);
 
         JButton searchButton = Theme.createSearchButton();
         searchButton.setPreferredSize(new Dimension(90, 34));
@@ -372,9 +361,7 @@ public class ContactWindow extends JFrame {
         });
 
         ((JButton) allComs.get("reset_button")).addActionListener(e -> {
-            ((JTextField) allComs.get("c_name_textField")).setText("");
-            ((JTextField) allComs.get("c_company_textField")).setText("");
-            ((JComboBox<?>) allComs.get("c_nickname_comboBox")).setSelectedIndex(0);
+            ((JTextField) allComs.get("keyword_textField")).setText("");
             current = 1;
             initTableData((DefaultTableModel) allComs.get("model"), getSearchMap());
         });
@@ -383,12 +370,7 @@ public class ContactWindow extends JFrame {
             current = 1;
             initTableData((DefaultTableModel) allComs.get("model"), getSearchMap());
         };
-        ((JTextField) allComs.get("c_name_textField")).addActionListener(enterSearch);
-        ((JTextField) allComs.get("c_company_textField")).addActionListener(enterSearch);
-        Component editor = ((JComboBox<?>) allComs.get("c_nickname_comboBox")).getEditor().getEditorComponent();
-        if (editor instanceof JTextField) {
-            ((JTextField) editor).addActionListener(enterSearch);
-        }
+        ((JTextField) allComs.get("keyword_textField")).addActionListener(enterSearch);
 
         ((JButton) allComs.get("del_button")).addActionListener(e -> deleteSelected(table));
 
@@ -713,58 +695,41 @@ public class ContactWindow extends JFrame {
             model.removeRow(0);
         }
 
-        Set<String> likeFields = new HashSet<>(Arrays.asList("c_name", "c_company"));
-
-        try {
-            StringBuilder sql = new StringBuilder("select contact.* from contact where 1=1");
-            StringBuilder sqlSum = new StringBuilder("select count(1) as total from contact where 1=1");
-            map.forEach((key, value) -> {
-                String text = value == null ? "" : value.toString();
-                if (!Utils.isBlank(text)) {
-                    String safe = text.replace("'", "''");
-                    if (likeFields.contains(key)) {
-                        sql.append(" and ").append(key).append(" like '%").append(safe).append("%'");
-                        sqlSum.append(" and ").append(key).append(" like '%").append(safe).append("%'");
-                    } else {
-                        sql.append(" and ").append(key).append("='").append(safe).append("'");
-                        sqlSum.append(" and ").append(key).append("='").append(safe).append("'");
-                    }
-                }
-            });
-
-            Statement statement = Utils.getStatement();
-            ResultSet rsSum = statement.executeQuery(sqlSum.toString());
-            boolean updatePage = false;
+        try (PreparedStatement countStatement = Utils.prepareContactCountStatement(map);
+             ResultSet rsSum = countStatement.executeQuery()) {
             if (rsSum.next()) {
                 total = rsSum.getInt("total");
-                pages = (int) Math.ceil(total * 1.0 / Math.max(1, size));
-                if (pages == 0) pages = 1;
-                if (current > pages) {
-                    current = pages;
-                    initTableData(model, map);
-                    updatePage = true;
-                }
-                updatePagingData();
+            } else {
+                total = 0;
             }
-            if (updatePage) return;
 
-            int start = (current - 1) * size;
-            sql.append(" limit ").append(start).append(",").append(size);
-            ResultSet rs = statement.executeQuery(sql.toString());
-            while (rs.next()) {
-                String contactId = rs.getString("c_id");
-                visibleContactIds.add(contactId);
-                model.addRow(new Object[]{
-                        start + model.getRowCount() + 1,
-                        rs.getString("c_name"),
-                        getProp("c_nickname", rs.getString("c_nickname")),
-                        rs.getString("c_phone"),
-                        rs.getString("c_email"),
-                        rs.getString("c_address"),
-                        rs.getString("c_company"),
-                        rs.getString("c_job_title"),
-                        rs.getString("notes")
-                });
+            pages = (int) Math.ceil(total * 1.0 / Math.max(1, size));
+            if (pages == 0) {
+                pages = 1;
+            }
+            if (current > pages) {
+                current = pages;
+            }
+            updatePagingData();
+
+            int start = Math.max(0, (current - 1) * size);
+            try (PreparedStatement listStatement = Utils.prepareContactListStatement(map, start, size);
+                 ResultSet rs = listStatement.executeQuery()) {
+                while (rs.next()) {
+                    String contactId = rs.getString("c_id");
+                    visibleContactIds.add(contactId);
+                    model.addRow(new Object[]{
+                            start + model.getRowCount() + 1,
+                            rs.getString("c_name"),
+                            getProp("c_nickname", rs.getString("c_nickname")),
+                            rs.getString("c_phone"),
+                            rs.getString("c_email"),
+                            rs.getString("c_address"),
+                            rs.getString("c_company"),
+                            rs.getString("c_job_title"),
+                            rs.getString("notes")
+                    });
+                }
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -812,9 +777,7 @@ public class ContactWindow extends JFrame {
 
     private Map<String, Object> getSearchMap() {
         Map<String, Object> map = new HashMap<>();
-        map.put("c_name", getText("c_name_textField", null));
-        map.put("c_nickname", getText("c_nickname_comboBox", "c_nickname"));
-        map.put("c_company", getText("c_company_textField", null));
+        map.put("keyword", getText("keyword_textField", null));
         return map;
     }
 

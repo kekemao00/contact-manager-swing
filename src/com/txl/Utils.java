@@ -46,6 +46,19 @@ public class Utils {
             "编号", "姓名", "分类", "电话", "邮箱", "地址", "公司", "岗位", "备注"
     };
     private static final Map<String, String> LEGACY_CONTACT_CATEGORY_MAP = createLegacyContactCategoryMap();
+    private static final String CONTACT_CATEGORY_DISPLAY_SQL = createContactCategoryDisplaySql();
+    private static final String[] CONTACT_GLOBAL_SEARCH_EXPRESSIONS = {
+            "ifnull(c_name,'')",
+            CONTACT_CATEGORY_DISPLAY_SQL,
+            "ifnull(c_phone,'')",
+            "ifnull(c_email,'')",
+            "ifnull(c_address,'')",
+            "ifnull(c_company,'')",
+            "ifnull(c_job_title,'')",
+            "ifnull(notes,'')",
+            "ifnull(c_group_name,'')",
+            "ifnull(c_birthday,'')"
+    };
     private static final Set<String> CONTACT_LIKE_FIELDS = new HashSet<>(Arrays.asList("c_name", "c_company"));
 
     // 固定数据目录：用户文档/通讯录数据/
@@ -76,6 +89,18 @@ public class Utils {
         map.put("6", "客户");
         map.put("7", "其他");
         return map;
+    }
+
+    private static String createContactCategoryDisplaySql() {
+        StringBuilder builder = new StringBuilder("case");
+        LEGACY_CONTACT_CATEGORY_MAP.forEach((storedValue, displayValue) -> builder
+                .append(" when c_nickname='")
+                .append(storedValue.replace("'", "''"))
+                .append("' then '")
+                .append(displayValue.replace("'", "''"))
+                .append("'"));
+        builder.append(" else ifnull(c_nickname,'') end");
+        return builder.toString();
     }
 
     /** 迁移旧数据库（从程序目录到 Documents） */
@@ -247,14 +272,16 @@ public class Utils {
     public static int exportContactsToCsv(File file, Map<String, Object> filters) throws Exception {
         StringBuilder sql = new StringBuilder(
                 "select c_id,c_name,c_nickname,c_phone,c_email,c_address,c_company,c_job_title,notes from contact where 1=1");
-        appendContactFilters(sql, filters);
+        List<String> params = new ArrayList<>();
+        appendContactFilters(sql, params, filters);
         sql.append(" order by c_id asc");
 
         int count = 0;
-        try (BufferedWriter writer = Files.newBufferedWriter(file.toPath(), StandardCharsets.UTF_8)) {
+        try (BufferedWriter writer = Files.newBufferedWriter(file.toPath(), StandardCharsets.UTF_8);
+             PreparedStatement statement = prepareStatement(sql.toString(), params);
+             ResultSet rs = statement.executeQuery()) {
             writer.write('\uFEFF');
             writer.write(toCsvLine(Arrays.asList(CONTACT_CSV_HEADERS)));
-            ResultSet rs = stmt.executeQuery(sql.toString());
             while (rs.next()) {
                 count++;
                 writer.newLine();
@@ -270,9 +297,29 @@ public class Utils {
                         rs.getString("notes")
                 )));
             }
-            rs.close();
         }
         return count;
+    }
+
+    public static PreparedStatement prepareContactCountStatement(Map<String, Object> filters) throws Exception {
+        StringBuilder sql = new StringBuilder("select count(1) as total from contact where 1=1");
+        List<String> params = new ArrayList<>();
+        appendContactFilters(sql, params, filters);
+        return prepareStatement(sql.toString(), params);
+    }
+
+    public static PreparedStatement prepareContactListStatement(Map<String, Object> filters, int offset, int limit) throws Exception {
+        StringBuilder sql = new StringBuilder(
+                "select c_id,c_name,c_nickname,c_phone,c_email,c_address,c_company,c_job_title,notes from contact where 1=1");
+        List<String> params = new ArrayList<>();
+        appendContactFilters(sql, params, filters);
+        sql.append(" limit ? offset ?");
+
+        PreparedStatement statement = prepareStatement(sql.toString(), params);
+        int parameterIndex = params.size() + 1;
+        statement.setInt(parameterIndex++, Math.max(1, limit));
+        statement.setInt(parameterIndex, Math.max(0, offset));
+        return statement;
     }
 
     public static ImportResult importContactsFromCsv(File file) throws Exception {
@@ -359,21 +406,51 @@ public class Utils {
         return exists;
     }
 
-    private static void appendContactFilters(StringBuilder sql, Map<String, Object> filters) {
+    private static PreparedStatement prepareStatement(String sql, List<String> params) throws Exception {
+        PreparedStatement statement = conn.prepareStatement(sql);
+        for (int i = 0; i < params.size(); i++) {
+            statement.setString(i + 1, params.get(i));
+        }
+        return statement;
+    }
+
+    private static void appendContactFilters(StringBuilder sql, List<String> params, Map<String, Object> filters) {
         if (filters == null) {
             return;
         }
+        String keyword = normalizeFilterValue(filters.get("keyword"));
+        if (!isBlank(keyword)) {
+            appendContactKeywordFilter(sql, params, keyword);
+            return;
+        }
         filters.forEach((key, value) -> {
-            String text = value == null ? "" : value.toString();
+            String text = normalizeFilterValue(value);
             if (!isBlank(text)) {
-                String safe = text.replace("'", "''");
                 if (CONTACT_LIKE_FIELDS.contains(key)) {
-                    sql.append(" and ").append(key).append(" like '%").append(safe).append("%'");
+                    sql.append(" and ").append(key).append(" like ?");
+                    params.add("%" + text + "%");
                 } else {
-                    sql.append(" and ").append(key).append("='").append(safe).append("'");
+                    sql.append(" and ").append(key).append("=?");
+                    params.add(text);
                 }
             }
         });
+    }
+
+    private static String normalizeFilterValue(Object value) {
+        return value == null ? "" : value.toString().trim();
+    }
+
+    private static void appendContactKeywordFilter(StringBuilder sql, List<String> params, String keyword) {
+        sql.append(" and (");
+        for (int i = 0; i < CONTACT_GLOBAL_SEARCH_EXPRESSIONS.length; i++) {
+            if (i > 0) {
+                sql.append(" or ");
+            }
+            sql.append(CONTACT_GLOBAL_SEARCH_EXPRESSIONS[i]).append(" like ?");
+            params.add("%" + keyword + "%");
+        }
+        sql.append(")");
     }
 
     private static String toCsvLine(List<String> cells) {
