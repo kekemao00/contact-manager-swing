@@ -2,6 +2,8 @@ package com.txl;
 
 import javax.swing.*;
 import javax.swing.filechooser.FileNameExtensionFilter;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
 import javax.swing.event.TableModelEvent;
 import javax.swing.event.TableModelListener;
 import javax.swing.table.DefaultTableModel;
@@ -25,6 +27,7 @@ import java.util.Set;
 
 public class ContactWindow extends JFrame {
     private static final int DEFAULT_PAGE_SIZE = 12;
+    private static final int SEARCH_DEBOUNCE_DELAY_MS = 250;
 
     private ContactWindow contactWindow;
     private JPanel contentPanel;
@@ -38,6 +41,7 @@ public class ContactWindow extends JFrame {
     public Integer mode = 0;
 
     private TableModelListener tableEditListener;
+    private Timer keywordSearchTimer;
     private boolean adjustingPageSize;
 
     public ContactWindow() {
@@ -354,23 +358,38 @@ public class ContactWindow extends JFrame {
 
     private void initActionListeners() {
         JTable table = (JTable) allComs.get("table");
+        JTextField keywordTextField = (JTextField) allComs.get("keyword_textField");
 
-        ((JButton) allComs.get("search_button")).addActionListener(e -> {
-            current = 1;
-            initTableData((DefaultTableModel) allComs.get("model"), getSearchMap());
+        keywordSearchTimer = new Timer(SEARCH_DEBOUNCE_DELAY_MS, e -> runKeywordSearch());
+        keywordSearchTimer.setRepeats(false);
+        keywordTextField.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) {
+                scheduleKeywordSearch();
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+                scheduleKeywordSearch();
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent e) {
+                scheduleKeywordSearch();
+            }
         });
+
+        ((JButton) allComs.get("search_button")).addActionListener(e -> runKeywordSearchImmediately());
 
         ((JButton) allComs.get("reset_button")).addActionListener(e -> {
-            ((JTextField) allComs.get("keyword_textField")).setText("");
-            current = 1;
-            initTableData((DefaultTableModel) allComs.get("model"), getSearchMap());
+            if (Utils.isBlank(keywordTextField.getText())) {
+                runKeywordSearchImmediately();
+            } else {
+                keywordTextField.setText("");
+            }
         });
 
-        ActionListener enterSearch = e -> {
-            current = 1;
-            initTableData((DefaultTableModel) allComs.get("model"), getSearchMap());
-        };
-        ((JTextField) allComs.get("keyword_textField")).addActionListener(enterSearch);
+        keywordTextField.addActionListener(e -> runKeywordSearchImmediately());
 
         ((JButton) allComs.get("del_button")).addActionListener(e -> deleteSelected(table));
 
@@ -445,6 +464,24 @@ public class ContactWindow extends JFrame {
                 jf.setText("");
             }
         });
+    }
+
+    private void scheduleKeywordSearch() {
+        if (keywordSearchTimer != null) {
+            keywordSearchTimer.restart();
+        }
+    }
+
+    private void runKeywordSearch() {
+        current = 1;
+        initTableData((DefaultTableModel) allComs.get("model"), getSearchMap());
+    }
+
+    private void runKeywordSearchImmediately() {
+        if (keywordSearchTimer != null && keywordSearchTimer.isRunning()) {
+            keywordSearchTimer.stop();
+        }
+        runKeywordSearch();
     }
 
     private JComboBox<String> createCategoryComboBox() {
