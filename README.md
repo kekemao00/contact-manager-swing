@@ -14,7 +14,14 @@
 
 ## 📸 截图
 
-> 待补充
+### 登录界面
+![登录界面](images/login.png)
+
+### 主界面
+![主界面](images/main.png)
+
+### 搜索与新增
+![搜索与新增](images/search-add.png)
 
 ## 🛠️ 技术栈
 
