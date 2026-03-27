@@ -60,7 +60,7 @@ java -cp "out;lib/*" me.kekemao.Main
 
 ### 使用安装包
 
-1. 下载最新的 `ContactManager.exe`
+1. 下载最新的 `contact-manager-swing.exe`
 2. 双击运行，选择安装目录
 3. 进入解压后的文件夹，运行 `启动通讯录.bat`
 4. 默认账号：`admin` / `123456`
