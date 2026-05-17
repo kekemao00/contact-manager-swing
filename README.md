@@ -18,7 +18,7 @@
 
 第二天早上酒醒，打开电脑，兑现承诺。
 
-**花了大约 2 小时**，从零撸出了这个工具。
+花了大约 2 小时，从零撸出了这个工具。
 他用了之后说：*"比我买的那个好用多了。"*
 
 既然做都做了，顺手开源出来——万一还有别的同事也在喝酒吹牛呢。
@@ -43,15 +43,15 @@
 
 ### 登录界面
 
-![登录界面](screenshots/login.png)
+![登录界面](images/login.png)
 
 ### 主界面
 
-![主界面](screenshots/main.png)
+![主界面](images/main.png)
 
 ### 搜索与新增
 
-![搜索与新增](screenshots/search_add.png)
+![搜索与新增](images/search_add.png)
 
 ---
 
@@ -164,4 +164,4 @@ lib/
 
 [MIT](LICENSE) © [kekemao00](https://github.com/kekemao00)
 
-> 开源协议选 MIT，因为我同事说他也想改改拿去用。随便，反正我 2 小时做的。
+> 开源协议选 MIT，因为我同事说他也想改改拿去用。随便，反正 2 小时做的。
