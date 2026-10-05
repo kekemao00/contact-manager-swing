@@ -35,7 +35,7 @@
 | 📤 **CSV 导入导出** | 方便批量导入历史数据，随时备份导出 |
 | 🔒 **自动备份** | 每次启动自动备份，保留最近 5 份，存储在用户文档目录 |
 | 🎨 **现代化 UI** | 卡片式布局、扁平化按钮、交替行配色、焦点高亮、实时时钟 |
-| 📦 **绿色免安装** | 内嵌 JRE，打包为单文件 `.exe`，解压即用，无需安装 Java 环境 |
+| 📦 **绿色免安装** | 内嵌 JRE，打包为 Windows 绿色版，解压即用，无需安装 Java 环境 |
 
 ---
 
@@ -59,9 +59,9 @@
 
 ### 方式一：直接使用（推荐，无需安装 Java）
 
-1. 前往 [Releases](https://github.com/kekemao00/contact-manager-swing/releases) 下载最新的 `contact-manager-swing.exe`
-2. 双击运行，选择解压目录
-3. 进入解压后的文件夹，运行 `启动通讯录.bat`
+1. 前往 [Releases](https://github.com/kekemao00/contact-manager-swing/releases) 下载最新的 `ContactManager-<版本>-windows-x64.zip`
+2. 解压到任意目录
+3. 双击 `ContactManager.exe` 运行（已内嵌 JRE）
 4. 使用默认账号登录：
 
 ```
@@ -71,21 +71,47 @@
 
 > ⚠️ 首次登录后建议修改默认密码，毕竟 `123456` 这种密码连我同事都能猜到。
 
+已安装 Java 21+ 的用户，也可以下载 `contact-manager-swing-<版本>.jar`，直接运行：
+
+```bash
+java -jar contact-manager-swing-<版本>.jar
+```
+
 ---
 
-### 方式二：从源码编译（需要 JDK 21+）
+### 方式二：从源码编译（需要 JDK 21+ 和 Maven）
 
 ```bash
 # 克隆项目
 git clone https://github.com/kekemao00/contact-manager-swing.git
 cd contact-manager-swing
 
-# 编译
-javac -encoding UTF-8 -d out -cp "lib/*" src/me/kekemao/*.java
+# 编译打包（依赖由 Maven 自动下载，产物为包含全部依赖的单文件 jar）
+mvn package
 
 # 运行
-java -cp "out;lib/*" me.kekemao.Main
+java -jar target/contact-manager-swing.jar
 ```
+
+---
+
+## 🤖 自动化构建与发布
+
+项目使用 GitHub Actions：
+
+- **CI**（`.github/workflows/ci.yml`）：推送到 `main` 或提交 PR 时自动编译、测试，并上传可运行 jar 作为构建产物。
+- **Release**（`.github/workflows/release.yml`）：推送 `v*` 标签时自动构建，并发布 GitHub Release，附带：
+  - `contact-manager-swing-<版本>.jar`：跨平台可运行 jar（需 Java 21+）
+  - `ContactManager-<版本>-windows-x64.zip`：内嵌 JRE 的 Windows 绿色版
+
+发布新版本：
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+标签带 `-`（如 `v1.1.0-beta.1`）时会发布为预发布版本。
 
 ---
 
@@ -98,7 +124,8 @@ java -cp "out;lib/*" me.kekemao.Main
 | SQLite | 3.45.2 | 本地数据存储 |
 | sqlite-jdbc | 3.45.2.0 | SQLite Java 驱动 |
 | SLF4J | 2.0.9 | 日志门面 |
-| 7-Zip SFX | — | 打包为单文件 exe |
+| Maven | 3.9+ | 构建与依赖管理 |
+| jpackage | 21 | 打包内嵌 JRE 的 Windows 绿色版 |
 
 ---
 
@@ -113,8 +140,8 @@ ContactManager/
 │   ├── ContactEditWindow.java  # 联系人编辑弹窗
 │   ├── Theme.java              # 全局主题与 UI 组件工厂
 │   └── Utils.java              # 数据库操作、导入导出、备份等工具类
-├── lib/                        # 依赖 jar
-├── jre/                        # 内嵌 JRE（打包用）
+├── .github/workflows/          # CI 与自动发布
+├── pom.xml                     # Maven 构建配置
 └── .gitignore
 ```
 
@@ -136,11 +163,12 @@ ContactManager/
 
 ## 📦 依赖
 
+依赖统一在 `pom.xml` 中声明，由 Maven 自动下载：
+
 ```
-lib/
-├── sqlite-jdbc-3.45.2.0.jar
-├── slf4j-api-2.0.9.jar
-└── slf4j-nop-2.0.9.jar
+org.xerial:sqlite-jdbc:3.45.2.0
+org.slf4j:slf4j-api:2.0.9
+org.slf4j:slf4j-nop:2.0.9
 ```
 
 ---
