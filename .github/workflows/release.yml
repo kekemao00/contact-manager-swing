@@ -1,9 +1,15 @@
 name: Release
 
-# 推送 v* 标签（如 v1.2.0）时自动构建并发布 GitHub Release
+# 推送 v* 标签（如 v1.2.0）时自动构建并发布 GitHub Release；
+# 也可在 Actions 页面手动运行，填入版本号后由 Release 自动在当前提交上创建标签
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '版本号，如 2.0.0（带 - 的为预发布版本，如 2.1.0-beta.1）'
+        required: true
 
 permissions:
   contents: write
@@ -13,6 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.ver.outputs.version }}
+      tag: ${{ steps.ver.outputs.tag }}
     steps:
       - uses: actions/checkout@v4
 
@@ -23,7 +30,20 @@ jobs:
           cache: maven
 
       - id: ver
-        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            version="${INPUT_VERSION#v}"
+          else
+            version="${GITHUB_REF_NAME#v}"
+          fi
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::版本号格式不正确：$version"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version" >> "$GITHUB_OUTPUT"
 
       - name: 构建可运行 jar
         run: mvn -B -ntp verify -Drevision=${{ steps.ver.outputs.version }}
@@ -83,12 +103,14 @@ jobs:
       - name: 发布 GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
+          TAG: ${{ needs.jar.outputs.tag }}
         run: |
           flags=()
           [[ "$TAG" == *-* ]] && flags+=(--prerelease)
+          # 手动运行时标签尚不存在，由 Release 在本次构建的提交上创建
           gh release create "$TAG" dist/* \
             --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
             --title "$TAG" \
             --generate-notes \
             "${flags[@]}"

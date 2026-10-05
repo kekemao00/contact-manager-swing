@@ -4,7 +4,15 @@
 [![UI](https://img.shields.io/badge/UI-Java%20Swing-blue)](https://docs.oracle.com/javase/tutorial/uiswing/)
 [![DB](https://img.shields.io/badge/Database-SQLite-lightgrey?logo=sqlite)](https://www.sqlite.org/)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows-informational)](https://github.com/kekemao00/contact-manager-swing/releases)
+[![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-informational)](https://github.com/kekemao00/contact-manager-swing/releases)
+[![Release](https://img.shields.io/github/v/release/kekemao00/contact-manager-swing?include_prereleases&sort=semver)](https://github.com/kekemao00/contact-manager-swing/releases/latest)
+[![CI](https://github.com/kekemao00/contact-manager-swing/actions/workflows/ci.yml/badge.svg)](https://github.com/kekemao00/contact-manager-swing/actions/workflows/ci.yml)
+
+一个**纯本地**的 Java Swing 通讯录：联系人按行业分类管理、全局搜索、CSV 导入导出、自动备份，数据只存在你自己的电脑上。
+
+<p align="center">
+  <img src="images/main.png" alt="主界面" width="860">
+</p>
 
 ---
 
@@ -33,25 +41,55 @@
 | 🏷️ **行业分类筛选** | 内置 OEM、ODM、模具厂、方案商等分类，支持自定义扩展 |
 | 🔍 **全局模糊搜索** | 实时过滤，输入即搜，支持姓名、公司、电话、邮箱等多字段匹配 |
 | 📤 **CSV 导入导出** | 方便批量导入历史数据，随时备份导出 |
-| 🔒 **自动备份** | 每次启动自动备份，保留最近 5 份，存储在用户文档目录 |
-| 🎨 **重做的界面** | 暖灰底、黑白组件、Geist 字体；按钮、面板、通知都由同一个形状弹簧变形，`Ctrl/⌘ + K` 命令面板 |
+| 💾 **自动备份** | 每次启动自动备份，保留最近 5 份，存储在用户文档目录 |
+| 🔐 **更安全的登录** | 密码以加盐 PBKDF2 哈希存储（旧版明文密码首次登录时自动升级）；连续输错 5 次锁定 30 秒；支持修改密码、退出登录，忘记密码可用 `--reset-password` 重置 |
+| 🎨 **重做的界面** | 暖灰底、黑白组件、Geist 字体，只在主操作和选中 / 聚焦状态上使用一个蓝色强调色；新增、编辑、确认都在窗口内以面板展开，不再弹对话框 |
+| ⌨️ **命令面板与快捷键** | `Ctrl/⌘ + K` 打开命令面板，搜联系人或执行任何操作；常用操作都有快捷键 |
 | 📦 **绿色免安装** | 内嵌 JRE，打包为 Windows 绿色版，解压即用，无需安装 Java 环境 |
 
 ---
 
 ## 📸 截图
 
-### 登录界面
+> 以下截图均为当前版本实际运行截取，数据为演示用的虚构联系人。
 
-![登录界面](images/login.png)
+### 登录
 
-### 主界面
+<p align="center"><img src="images/login.png" alt="登录界面" width="360"></p>
+
+### 主界面：分类标签与联系人列表
 
 ![主界面](images/main.png)
 
-### 搜索与新增
+### 命令面板（`Ctrl/⌘ + K`）
 
-![搜索与新增](images/search_add.png)
+![命令面板](images/command-palette.png)
+
+### 新增 / 编辑联系人
+
+![新增联系人](images/edit.png)
+
+### 全局搜索
+
+![搜索](images/search.png)
+
+### 修改密码（使用默认密码登录时自动提示）
+
+![修改密码](images/change-password.png)
+
+---
+
+## ⌨️ 快捷键
+
+| 快捷键 | 作用 |
+|--------|------|
+| `Ctrl/⌘ + K` | 打开命令面板（搜联系人、新增、导入导出、修改密码、退出登录……） |
+| `Ctrl/⌘ + N` | 新增联系人 |
+| `Ctrl/⌘ + F` | 聚焦搜索框 |
+| `Enter` | 编辑选中的联系人；在面板中为保存 |
+| `Delete` | 删除选中的联系人（会先确认） |
+| `Esc` | 关闭面板 / 清空搜索 |
+| `PageUp` / `PageDown` | 上一页 / 下一页 |
 
 ---
 
@@ -69,10 +107,21 @@
 密码：123456
 ```
 
-> ⚠️ 首次登录后建议修改默认密码，毕竟 `123456` 这种密码连我同事都能猜到。使用默认密码登录时会自动弹出修改提示，之后也可以在主界面右上角点「修改密码」。
->
-> 忘记密码？带上 `--reset-password` 参数启动一次即可把 `admin` 的密码重置为默认密码：
-> `java -jar contact-manager-swing-<版本>.jar --reset-password`
+> ⚠️ 首次登录后建议修改默认密码，毕竟 `123456` 这种密码连我同事都能猜到。使用默认密码登录时会自动弹出修改提示，之后也可以点右上角的账号菜单，或在命令面板里选「修改密码」。
+
+#### 忘记密码
+
+带上 `--reset-password` 参数启动一次，即可把 `admin` 的密码重置为默认密码 `123456`（只改密码，联系人数据不受影响）：
+
+```bash
+# jar 版本
+java -jar contact-manager-swing-<版本>.jar --reset-password
+
+# Windows 绿色版（在解压目录中打开命令行）
+ContactManager.exe --reset-password
+```
+
+> 连续输错 5 次密码会锁定 30 秒，等一会儿再试即可。
 
 已安装 Java 21+ 的用户，也可以下载 `contact-manager-swing-<版本>.jar`，直接运行：
 
@@ -107,14 +156,20 @@ java -jar target/contact-manager-swing.jar
   - `contact-manager-swing-<版本>.jar`：跨平台可运行 jar（需 Java 21+）
   - `ContactManager-<版本>-windows-x64.zip`：内嵌 JRE 的 Windows 绿色版
 
-发布新版本：
+> 合并 PR 到 `main` **不会**自动发版，只会跑 CI。需要发布时用下面任意一种方式：
+
+**方式 A：推送标签**
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+git tag v2.0.0
+git push origin v2.0.0
 ```
 
-标签带 `-`（如 `v1.1.0-beta.1`）时会发布为预发布版本。
+**方式 B：在网页上手动运行**
+
+打开 [Actions → Release](https://github.com/kekemao00/contact-manager-swing/actions/workflows/release.yml)，点 **Run workflow**，填入版本号（如 `2.0.0`），Release 会在 `main` 当前提交上自动创建标签。
+
+版本号带 `-`（如 `v2.1.0-beta.1`）时会发布为预发布版本。
 
 ---
 
@@ -148,6 +203,7 @@ ContactManager/
 │   ├── Utils.java              # 数据库操作、导入导出、备份等工具类
 │   └── ui/                     # 颜色、字体、弹簧动画与通用组件
 ├── resources/fonts/            # Geist 字体（SIL OFL 1.1）
+├── images/                     # README 截图
 ├── .github/workflows/          # CI 与自动发布
 ├── pom.xml                     # Maven 构建配置
 └── .gitignore
@@ -189,7 +245,7 @@ org.slf4j:slf4j-nop:2.0.9
 - [ ] 支持联系人标签（Tag）功能
 - [ ] 支持导出为 vCard (.vcf) 格式
 - [ ] 支持深色模式
-- [ ] 支持 macOS / Linux 打包
+- [ ] 支持 macOS / Linux 安装包（目前可直接运行 jar）
 - [ ] 支持联系人头像
 
 欢迎提 Issue，但请不要在饭局上当面催我。
