@@ -2,13 +2,16 @@ package me.kekemao;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
-import java.util.Map;
+import java.util.Arrays;
+import java.util.prefs.Preferences;
 
 public class LoginGUI extends JFrame {
+    private static final String LOGIN_TEXT = "登 录";
+    private static final Preferences PREFS = Preferences.userNodeForPackage(LoginGUI.class);
+    private static final String PREF_LAST_USERNAME = "lastUsername";
+
     private LoginGUI loginGUI;
     private JTextField usernameField;
     private JPasswordField passwordField;
@@ -119,7 +122,7 @@ public class LoginGUI extends JFrame {
 
         gbc.gridy = 4;
         gbc.insets = new Insets(0, 0, 0, 0);
-        loginButton = Theme.createPrimaryButton("登 录");
+        loginButton = Theme.createPrimaryButton(LOGIN_TEXT);
         loginButton.setPreferredSize(new Dimension(300, 42));
         loginButton.setAlignmentX(Component.CENTER_ALIGNMENT);
         cardPanel.add(loginButton, gbc);
@@ -145,36 +148,10 @@ public class LoginGUI extends JFrame {
         mainPanel.add(bottomPanel, BorderLayout.SOUTH);
 
         // ====== 事件绑定 ======
-        loginButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                String username = usernameField.getText();
-                String pass = new String(passwordField.getPassword());
-                if ("".equals(username.trim())) {
-                    Theme.showMessage(loginGUI, "请输入账号", -1);
-                    usernameField.requestFocus();
-                    return;
-                }
-                if ("".equals(pass.trim())) {
-                    Theme.showMessage(loginGUI, "请输入密码", -1);
-                    passwordField.requestFocus();
-                    return;
-                }
-                Map<String, Object> map = Utils.login(username, pass);
-                if (map.get("status").equals(200)) {
-                    loginButton.setText("登录成功 ✓");
-                    loginButton.setEnabled(false);
-                    Timer t = new Timer(500, ev -> {
-                        loginGUI.dispose();
-                        new ContactWindow();
-                    });
-                    t.setRepeats(false);
-                    t.start();
-                } else {
-                    shakeAndReset(usernameField, passwordField, map.get("mess").toString());
-                }
-            }
-        });
+        loginButton.addActionListener(e -> doLogin());
+        // 记住上次登录的账号，首次使用时预填默认账号
+        String lastUsername = PREFS.get(PREF_LAST_USERNAME, Utils.DEFAULT_ADMIN_USERNAME);
+        usernameField.setText(lastUsername);
 
         getRootPane().setDefaultButton(loginButton);
 
@@ -212,14 +189,108 @@ public class LoginGUI extends JFrame {
         });
 
         this.setVisible(true);
+        // 记住了上次的账号时，直接把焦点放到密码框
+        JComponent initialFocus = Utils.isBlank(lastUsername) ? usernameField : passwordField;
+        SwingUtilities.invokeLater(initialFocus::requestFocusInWindow);
     }
 
-    /** 输入框抖动效果 */
-    private void shakeAndReset(JTextField uf, JPasswordField pf, String msg) {
+    private void doLogin() {
+        String username = usernameField.getText().trim();
+        char[] password = passwordField.getPassword();
+        if (username.isEmpty()) {
+            Theme.showMessage(loginGUI, "请输入账号", -1);
+            usernameField.requestFocusInWindow();
+            return;
+        }
+        if (password.length == 0) {
+            Theme.showMessage(loginGUI, "请输入密码", -1);
+            passwordField.requestFocusInWindow();
+            return;
+        }
+
+        setInputsEnabled(false);
+        loginButton.setText("登录中…");
+        // 密码哈希校验较耗时，放到后台线程，避免界面卡住
+        new SwingWorker<AccountService.LoginResult, Void>() {
+            @Override
+            protected AccountService.LoginResult doInBackground() {
+                return AccountService.login(username, password);
+            }
+
+            @Override
+            protected void done() {
+                Arrays.fill(password, '\0');
+                AccountService.LoginResult result;
+                try {
+                    result = get();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                    setInputsEnabled(true);
+                    loginButton.setText(LOGIN_TEXT);
+                    Theme.showMessage(loginGUI, "登录时发生错误：" + ex.getMessage(), -1);
+                    return;
+                }
+                onLoginResult(username, result);
+            }
+        }.execute();
+    }
+
+    private void onLoginResult(String username, AccountService.LoginResult result) {
+        if (result.isSuccess()) {
+            PREFS.put(PREF_LAST_USERNAME, username);
+            loginButton.setText("登录成功 ✓");
+            Timer t = new Timer(400, ev -> {
+                loginGUI.dispose();
+                ContactWindow contactWindow = new ContactWindow();
+                if (result.usingDefaultPassword) {
+                    new ChangePasswordDialog(contactWindow, "当前仍在使用默认密码，建议立即修改").showDialog();
+                }
+            });
+            t.setRepeats(false);
+            t.start();
+            return;
+        }
+
+        passwordField.setText("");
+        if (result.status == AccountService.Status.LOCKED) {
+            startLockCountdown(result.lockSeconds);
+            Theme.showMessage(loginGUI, result.message, 1);
+            return;
+        }
+        setInputsEnabled(true);
+        loginButton.setText(LOGIN_TEXT);
+        shake(result.message);
+    }
+
+    private void startLockCountdown(int seconds) {
+        setInputsEnabled(false);
+        final int[] remaining = {Math.max(1, seconds)};
+        loginButton.setText("请等待 " + remaining[0] + " 秒");
+        Timer countdown = new Timer(1000, null);
+        countdown.addActionListener(e -> {
+            remaining[0]--;
+            if (remaining[0] <= 0) {
+                countdown.stop();
+                setInputsEnabled(true);
+                loginButton.setText(LOGIN_TEXT);
+                passwordField.requestFocusInWindow();
+            } else {
+                loginButton.setText("请等待 " + remaining[0] + " 秒");
+            }
+        });
+        countdown.start();
+    }
+
+    private void setInputsEnabled(boolean enabled) {
+        usernameField.setEnabled(enabled);
+        passwordField.setEnabled(enabled);
+        loginButton.setEnabled(enabled);
+    }
+
+    /** 登录失败：提示并抖动窗口，保留账号，聚焦密码框 */
+    private void shake(String msg) {
         Theme.showMessage(loginGUI, msg, -1);
-        uf.setText("");
-        pf.setText("");
-        uf.requestFocus();
+        passwordField.requestFocusInWindow();
         int x = loginGUI.getLocation().x;
         int y = loginGUI.getLocation().y;
         int[] offsets = {-4, 4, -3, 3, -2, 2, -1, 1, 0};

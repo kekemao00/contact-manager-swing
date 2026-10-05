@@ -347,15 +347,24 @@ public class Theme {
         }
         JOptionPane.showMessageDialog(parent,
                 "<html><div style='font-family:微软雅黑;font-size:13px;padding:4px;'>"
-                + icon + "  " + message + "</div></html>",
+                + icon + "  " + toHtml(message) + "</div></html>",
                 title, JOptionPane.PLAIN_MESSAGE);
+    }
+
+    /** 转义消息中的 HTML 字符（如联系人姓名、异常信息），换行转为 <br> */
+    private static String toHtml(String message) {
+        if (message == null) return "";
+        return message.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\n", "<br>");
     }
 
     /** 显示确认对话框 */
     public static int showConfirm(Component parent, String message) {
         return JOptionPane.showConfirmDialog(parent,
                 "<html><div style='font-family:微软雅黑;font-size:13px;padding:4px;'>"
-                + "⚠️  " + message + "</div></html>",
+                + "⚠️  " + toHtml(message) + "</div></html>",
                 "确认操作", JOptionPane.YES_NO_OPTION, JOptionPane.PLAIN_MESSAGE);
     }
 }
