@@ -13,17 +13,12 @@ import java.awt.event.*;
 import java.io.File;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
-import java.sql.Statement;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 public class ContactWindow extends JFrame {
     private static final int DEFAULT_PAGE_SIZE = 12;
@@ -33,61 +28,24 @@ public class ContactWindow extends JFrame {
     private JPanel contentPanel;
     private final Map<String, Object> allComs = new HashMap<>();
     private final List<String> visibleContactIds = new ArrayList<>();
-    private static final Map<String, Map<String, String>> propMap = new HashMap<>();
     public Integer current = 1;
     public Integer pages = 1;
     public Integer size = DEFAULT_PAGE_SIZE;
     public Integer total = 0;
-    public Integer mode = 0;
 
     private TableModelListener tableEditListener;
     private Timer keywordSearchTimer;
     private boolean adjustingPageSize;
+    private Timer clockTimer;
+    private ContactEditWindow editWindow;
 
     public ContactWindow() {
         initWindow();
-        initPropMap();
         initActionListeners();
         initTableData((DefaultTableModel) allComs.get("model"), getSearchMap());
-        this.setVisible(true);
-        setLocationRelativeTo(null);
         this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        schedulePageSizeRefresh();
-    }
-
-    public ContactWindow(JFrame parentJFrame) {
-        initWindow();
-        initPropMap();
-        initActionListeners();
-        initTableData((DefaultTableModel) allComs.get("model"), getSearchMap());
-        this.setVisible(true);
         setLocationRelativeTo(null);
-        this.setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
-        this.addWindowListener(new WindowAdapter() {
-            @Override
-            public void windowClosing(WindowEvent e) {
-                parentJFrame.setVisible(true);
-                contactWindow.dispose();
-            }
-        });
-        schedulePageSizeRefresh();
-    }
-
-    public ContactWindow(Integer mode) {
-        this.mode = mode;
-        initWindow();
-        initPropMap();
-        initActionListeners();
-        initTableData((DefaultTableModel) allComs.get("model"), getSearchMap());
         this.setVisible(true);
-        this.setLocationRelativeTo(null);
-        if (mode == 1) {
-            ((JButton) allComs.get("del_button")).setVisible(false);
-            ((JButton) allComs.get("add_button")).setVisible(false);
-            ((JButton) allComs.get("edit_button")).setVisible(false);
-            ((JButton) allComs.get("export_button")).setVisible(false);
-            ((JButton) allComs.get("import_button")).setVisible(false);
-        }
         schedulePageSizeRefresh();
     }
 
@@ -121,10 +79,27 @@ public class ContactWindow extends JFrame {
         JLabel timeLabel = new JLabel();
         timeLabel.setFont(new Font("微软雅黑", Font.PLAIN, 12));
         timeLabel.setForeground(new Color(200, 220, 255));
-        Timer timer = new Timer(1000, e -> timeLabel.setText(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date())));
-        timer.start();
-        timer.setInitialDelay(0);
+        clockTimer = new Timer(1000, e -> timeLabel.setText(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date())));
+        clockTimer.setInitialDelay(0);
+        clockTimer.start();
         headerRight.add(timeLabel);
+
+        String currentUser = AccountService.getCurrentUser();
+        if (currentUser != null) {
+            headerRight.add(Box.createHorizontalStrut(16));
+            JLabel userLabel = new JLabel("👤 " + currentUser);
+            userLabel.setFont(new Font("微软雅黑", Font.PLAIN, 12));
+            userLabel.setForeground(Color.WHITE);
+            headerRight.add(userLabel);
+        }
+        headerRight.add(Box.createHorizontalStrut(12));
+        JButton changePasswordButton = createHeaderLinkButton("修改密码");
+        changePasswordButton.addActionListener(e -> new ChangePasswordDialog(this, null).showDialog());
+        headerRight.add(changePasswordButton);
+        headerRight.add(Box.createHorizontalStrut(4));
+        JButton logoutButton = createHeaderLinkButton("退出登录");
+        logoutButton.addActionListener(e -> logout());
+        headerRight.add(logoutButton);
         headerPanel.add(headerRight, BorderLayout.EAST);
 
         JPanel searchCardPanel = Theme.createCardPanel();
@@ -348,12 +323,51 @@ public class ContactWindow extends JFrame {
         add(headerPanel, BorderLayout.NORTH);
         add(contentPanel, BorderLayout.CENTER);
 
-        this.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
-        this.addWindowListener(new WindowAdapter() {
-            @Override
-            public void windowClosing(WindowEvent e) {
-            }
-        });
+    }
+
+    private JButton createHeaderLinkButton(String text) {
+        JButton button = new JButton(text);
+        button.setFont(new Font("微软雅黑", Font.PLAIN, 12));
+        button.setForeground(Color.WHITE);
+        button.setContentAreaFilled(false);
+        button.setBorderPainted(false);
+        button.setFocusPainted(false);
+        button.setBorder(BorderFactory.createEmptyBorder(2, 6, 2, 6));
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        return button;
+    }
+
+    private void logout() {
+        if (Theme.showConfirm(contentPanel, "确定要退出登录吗？") != 0) {
+            return;
+        }
+        AccountService.logout();
+        dispose();
+        new LoginGUI();
+    }
+
+    @Override
+    public void dispose() {
+        if (clockTimer != null) {
+            clockTimer.stop();
+        }
+        if (keywordSearchTimer != null) {
+            keywordSearchTimer.stop();
+        }
+        if (editWindow != null && editWindow.isDisplayable()) {
+            editWindow.dispose();
+        }
+        super.dispose();
+    }
+
+    /** 同一时间只打开一个编辑窗口，重复打开时把已有窗口提到前面 */
+    private void showEditWindow(Map<String, Object> contact) {
+        if (editWindow != null && editWindow.isDisplayable()) {
+            editWindow.toFront();
+            editWindow.requestFocus();
+            return;
+        }
+        editWindow = new ContactEditWindow(contactWindow, contact);
     }
 
     private void initActionListeners() {
@@ -393,7 +407,7 @@ public class ContactWindow extends JFrame {
 
         ((JButton) allComs.get("del_button")).addActionListener(e -> deleteSelected(table));
 
-        ((JButton) allComs.get("add_button")).addActionListener(e -> new ContactEditWindow(contactWindow, null));
+        ((JButton) allComs.get("add_button")).addActionListener(e -> showEditWindow(null));
 
         ((JButton) allComs.get("edit_button")).addActionListener(e -> openEditWindow(table));
         ((JButton) allComs.get("export_button")).addActionListener(e -> exportContacts());
@@ -625,7 +639,7 @@ public class ContactWindow extends JFrame {
             map.put("c_company", table.getModel().getValueAt(row, 6));
             map.put("c_job_title", table.getModel().getValueAt(row, 7));
             map.put("notes", table.getModel().getValueAt(row, 8));
-            new ContactEditWindow(contactWindow, map);
+            showEditWindow(map);
         } else {
             Theme.showMessage(contentPanel, "请先选择一条记录", -1);
         }
@@ -643,7 +657,7 @@ public class ContactWindow extends JFrame {
                 return;
             }
             try {
-                Utils.getStatement().executeUpdate("delete from contact where c_id = '" + id + "'");
+                Utils.deleteContact(id);
                 initTableData((DefaultTableModel) allComs.get("model"), getSearchMap());
             } catch (Exception xe) {
                 xe.printStackTrace();
@@ -660,48 +674,15 @@ public class ContactWindow extends JFrame {
         ((JLabel) allComs.get("sum_label")).setText("共 " + total + " 条记录");
     }
 
-    private void initPropMap() {
-        propMap.clear();
-        Map<String, String> cNicknameMap = new LinkedHashMap<>();
-        cNicknameMap.put("1", "伙伴");
-        cNicknameMap.put("2", "家人");
-        cNicknameMap.put("3", "亲戚");
-        cNicknameMap.put("4", "朋友");
-        cNicknameMap.put("5", "同事");
-        cNicknameMap.put("6", "客户");
-        cNicknameMap.put("7", "其他");
-        propMap.put("c_nickname", cNicknameMap);
-    }
-
     public String getProp(String prop, String index) {
-        if (Utils.isBlank(index)) {
-            return "";
-        }
-        if (propMap.containsKey(prop)) {
-            Map<String, String> map = propMap.get(prop);
-            if (map != null && map.get(index) != null) {
-                return map.get(index);
-            }
-        }
-        return Utils.normalizeCategoryValue(index);
+        return "c_nickname".equals(prop) ? Utils.toContactCategoryDisplayValue(index) : (index == null ? "" : index);
     }
 
     public String getPropValue(String prop, String name) {
-        String normalized = "c_nickname".equals(prop) ? Utils.normalizeCategoryValue(name) : (name == null ? "" : name.trim());
-        if (Utils.isBlank(normalized)) {
-            return "";
+        if ("c_nickname".equals(prop)) {
+            return Utils.toContactCategoryStoredValue(name);
         }
-        if (propMap.containsKey(prop)) {
-            Map<String, String> map = propMap.get(prop);
-            if (map != null) {
-                for (Map.Entry<String, String> entry : map.entrySet()) {
-                    if (normalized.equals(entry.getValue())) {
-                        return entry.getKey();
-                    }
-                }
-            }
-        }
-        return normalized;
+        return name == null ? "" : name.trim();
     }
 
     public void showWindow() {
@@ -797,12 +778,15 @@ public class ContactWindow extends JFrame {
                 String id = getContactIdAtRow(row);
                 if (Utils.isBlank(id)) return;
                 Object valObj = model.getValueAt(row, col);
-                String newVal = (valObj == null ? "" : valObj.toString()).replace("'", "''");
+                String newVal = valObj == null ? "" : valObj.toString().trim();
+                if ("c_name".equals(dbField) && newVal.isEmpty()) {
+                    Theme.showMessage(contentPanel, "姓名不能为空", -1);
+                    SwingUtilities.invokeLater(() -> initTableData(model, getSearchMap()));
+                    return;
+                }
 
                 try {
-                    Utils.getStatement().executeUpdate(
-                            "update contact set " + dbField + "='" + newVal + "' where c_id='" + id + "'"
-                    );
+                    Utils.updateContactField(id, dbField, newVal);
                 } catch (Exception ex) {
                     ex.printStackTrace();
                     Theme.showMessage(contentPanel, "保存失败：" + ex.getMessage(), -1);

@@ -69,7 +69,10 @@
 密码：123456
 ```
 
-> ⚠️ 首次登录后建议修改默认密码，毕竟 `123456` 这种密码连我同事都能猜到。
+> ⚠️ 首次登录后建议修改默认密码，毕竟 `123456` 这种密码连我同事都能猜到。使用默认密码登录时会自动弹出修改提示，之后也可以在主界面右上角点「修改密码」。
+>
+> 忘记密码？带上 `--reset-password` 参数启动一次即可把 `admin` 的密码重置为默认密码：
+> `java -cp "out;lib/*" me.kekemao.Main --reset-password`
 
 ---
 
@@ -109,6 +112,8 @@ ContactManager/
 ├── src/me/kekemao/
 │   ├── Main.java               # 程序入口
 │   ├── LoginGUI.java           # 登录界面
+│   ├── AccountService.java     # 账号逻辑（密码哈希、登录锁定、修改密码）
+│   ├── ChangePasswordDialog.java # 修改密码弹窗
 │   ├── ContactWindow.java      # 联系人主界面（列表、搜索、分类筛选）
 │   ├── ContactEditWindow.java  # 联系人编辑弹窗
 │   ├── Theme.java              # 全局主题与 UI 组件工厂
