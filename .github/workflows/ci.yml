@@ -1,0 +1,37 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: 编译与测试
+        run: mvn -B -ntp verify
+
+      - name: 上传可运行 jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: contact-manager-swing-jar
+          path: target/contact-manager-swing.jar
+          retention-days: 14
