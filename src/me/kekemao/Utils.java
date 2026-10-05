@@ -60,6 +60,8 @@ public class Utils {
             "ifnull(c_birthday,'')"
     };
     private static final Set<String> CONTACT_LIKE_FIELDS = new HashSet<>(Arrays.asList("c_name", "c_company"));
+    private static final Set<String> CONTACT_EDITABLE_FIELDS = new HashSet<>(Arrays.asList(
+            "c_name", "c_nickname", "c_phone", "c_email", "c_address", "c_company", "c_job_title", "notes"));
 
     // 固定数据目录：用户文档/通讯录数据/
     private static final String DATA_DIR;
@@ -122,6 +124,7 @@ public class Utils {
     private static String url = "jdbc:sqlite:" + DB_PATH;
     private static Connection conn;
     private static Statement stmt;
+    private static String initError;
 
     static {
         try {
@@ -153,19 +156,21 @@ public class Utils {
                 "  notes TEXT" +
                 ")"
             );
-            ResultSet rs = stmt.executeQuery("SELECT COUNT(1) FROM admin WHERE username='" + DEFAULT_ADMIN_USERNAME + "'");
-            if (rs.next() && rs.getInt(1) == 0) {
-                stmt.executeUpdate("INSERT INTO admin(username,password,name,email) VALUES('"
-                        + DEFAULT_ADMIN_USERNAME + "','" + DEFAULT_ADMIN_PASSWORD + "','管理员',NULL)");
-            }
-            rs.close();
-            stmt.executeUpdate("UPDATE admin SET password='" + DEFAULT_ADMIN_PASSWORD
-                    + "' WHERE username='" + DEFAULT_ADMIN_USERNAME + "'");
+            AccountService.ensureDefaultAdmin(conn);
 
             backup();
         } catch (Exception e) {
             e.printStackTrace();
+            initError = e.getMessage() == null ? e.toString() : e.getMessage();
         }
+    }
+
+    /** 数据库初始化失败的原因，成功时为 null */
+    public static String getInitError() {
+        if (initError == null && conn == null) {
+            return "数据库连接未建立";
+        }
+        return initError;
     }
 
     /** 自动备份，保留最近 MAX_BACKUPS 份 */
@@ -313,7 +318,7 @@ public class Utils {
                 "select c_id,c_name,c_nickname,c_phone,c_email,c_address,c_company,c_job_title,notes from contact where 1=1");
         List<String> params = new ArrayList<>();
         appendContactFilters(sql, params, filters);
-        sql.append(" limit ? offset ?");
+        sql.append(" order by c_id asc limit ? offset ?");
 
         PreparedStatement statement = prepareStatement(sql.toString(), params);
         int parameterIndex = params.size() + 1;
@@ -324,6 +329,8 @@ public class Utils {
 
     public static ImportResult importContactsFromCsv(File file) throws Exception {
         ImportResult result = new ImportResult();
+        boolean autoCommit = conn.getAutoCommit();
+        conn.setAutoCommit(false);
         try (BufferedReader reader = Files.newBufferedReader(file.toPath(), StandardCharsets.UTF_8);
              PreparedStatement existsStatement = conn.prepareStatement("select count(1) from contact where c_id=?");
              PreparedStatement insertStatement = conn.prepareStatement(
@@ -331,22 +338,21 @@ public class Utils {
              PreparedStatement updateStatement = conn.prepareStatement(
                      "update contact set c_name=?,c_nickname=?,c_phone=?,c_email=?,c_address=?,c_company=?,c_job_title=?,notes=? where c_id=?")) {
 
-            String headerLine = reader.readLine();
-            if (headerLine == null) {
+            List<String> headers = readCsvRecord(reader);
+            if (headers == null) {
                 return result;
             }
 
-            Map<String, Integer> headerIndex = buildCsvHeaderIndex(parseCsvLine(headerLine));
+            Map<String, Integer> headerIndex = buildCsvHeaderIndex(headers);
             if (!headerIndex.containsKey("姓名")) {
                 throw new IOException("导入文件缺少“姓名”列");
             }
 
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (isBlank(line)) {
+            List<String> cells;
+            while ((cells = readCsvRecord(reader)) != null) {
+                if (cells.size() == 1 && isBlank(cells.get(0))) {
                     continue;
                 }
-                List<String> cells = parseCsvLine(line);
                 String cIdValue = getCsvCell(headerIndex, cells, "编号").trim();
                 String cNameValue = getCsvCell(headerIndex, cells, "姓名").trim();
                 if (isBlank(cNameValue)) {
@@ -375,8 +381,53 @@ public class Utils {
                     result.inserted++;
                 }
             }
+            conn.commit();
+        } catch (Exception e) {
+            // 导入失败时整体回滚，避免只导入一半
+            conn.rollback();
+            throw e;
+        } finally {
+            conn.setAutoCommit(autoCommit);
         }
         return result;
+    }
+
+    public static int insertContact(String cName, String cNickname, String cPhone, String cEmail,
+                                    String cAddress, String cCompany, String cJobTitle, String notes) throws Exception {
+        try (PreparedStatement statement = conn.prepareStatement(
+                "insert into contact(c_name,c_nickname,c_phone,c_email,c_address,c_company,c_job_title,notes) values(?,?,?,?,?,?,?,?)")) {
+            bindContactStatement(statement, cName, cNickname, cPhone, cEmail, cAddress, cCompany, cJobTitle, notes);
+            return statement.executeUpdate();
+        }
+    }
+
+    public static int updateContact(String cId, String cName, String cNickname, String cPhone, String cEmail,
+                                    String cAddress, String cCompany, String cJobTitle, String notes) throws Exception {
+        try (PreparedStatement statement = conn.prepareStatement(
+                "update contact set c_name=?,c_nickname=?,c_phone=?,c_email=?,c_address=?,c_company=?,c_job_title=?,notes=? where c_id=?")) {
+            bindContactStatement(statement, cName, cNickname, cPhone, cEmail, cAddress, cCompany, cJobTitle, notes);
+            statement.setString(9, cId);
+            return statement.executeUpdate();
+        }
+    }
+
+    /** 表格内联编辑单个字段，字段名必须在白名单内 */
+    public static int updateContactField(String cId, String field, String value) throws Exception {
+        if (!CONTACT_EDITABLE_FIELDS.contains(field)) {
+            throw new IllegalArgumentException("不支持修改字段：" + field);
+        }
+        try (PreparedStatement statement = conn.prepareStatement("update contact set " + field + "=? where c_id=?")) {
+            statement.setString(1, value);
+            statement.setString(2, cId);
+            return statement.executeUpdate();
+        }
+    }
+
+    public static int deleteContact(String cId) throws Exception {
+        try (PreparedStatement statement = conn.prepareStatement("delete from contact where c_id=?")) {
+            statement.setString(1, cId);
+            return statement.executeUpdate();
+        }
     }
 
     private static void bindContactStatement(PreparedStatement statement,
@@ -425,7 +476,8 @@ public class Utils {
         }
         filters.forEach((key, value) -> {
             String text = normalizeFilterValue(value);
-            if (!isBlank(text)) {
+            // 字段名会拼进 SQL，只接受已知字段
+            if (!isBlank(text) && CONTACT_EDITABLE_FIELDS.contains(key)) {
                 if (CONTACT_LIKE_FIELDS.contains(key)) {
                     sql.append(" and ").append(key).append(" like ?");
                     params.add("%" + text + "%");
@@ -496,57 +548,44 @@ public class Utils {
         return value.replace("\uFEFF", "").trim();
     }
 
-    private static List<String> parseCsvLine(String line) {
+    /** 读取一条 CSV 记录，支持引号内的逗号、换行和转义引号；文件结束返回 null */
+    private static List<String> readCsvRecord(BufferedReader reader) throws IOException {
+        String line = reader.readLine();
+        if (line == null) {
+            return null;
+        }
         List<String> cells = new ArrayList<>();
         StringBuilder current = new StringBuilder();
         boolean inQuotes = false;
-        for (int i = 0; i < line.length(); i++) {
-            char ch = line.charAt(i);
-            if (ch == '"') {
-                if (inQuotes && i + 1 < line.length() && line.charAt(i + 1) == '"') {
-                    current.append('"');
-                    i++;
+        while (true) {
+            for (int i = 0; i < line.length(); i++) {
+                char ch = line.charAt(i);
+                if (ch == '"') {
+                    if (inQuotes && i + 1 < line.length() && line.charAt(i + 1) == '"') {
+                        current.append('"');
+                        i++;
+                    } else {
+                        inQuotes = !inQuotes;
+                    }
+                } else if (ch == ',' && !inQuotes) {
+                    cells.add(current.toString());
+                    current.setLength(0);
                 } else {
-                    inQuotes = !inQuotes;
+                    current.append(ch);
                 }
-            } else if (ch == ',' && !inQuotes) {
-                cells.add(current.toString());
-                current.setLength(0);
-            } else {
-                current.append(ch);
             }
+            if (!inQuotes) {
+                break;
+            }
+            String next = reader.readLine();
+            if (next == null) {
+                break;
+            }
+            current.append('\n');
+            line = next;
         }
         cells.add(current.toString());
         return cells;
-    }
-
-    public static Map<String, Object> login(String name, String pass) {
-        Map<String, Object> map = new HashMap<>();
-        String sql = "select * from admin where username = '" + name + "'";
-        Statement statement = getStatement();
-        try {
-            ResultSet resultSet = statement.executeQuery(sql);
-            if (resultSet.next()) {
-                String password = resultSet.getString("password");
-                if (pass.equals(password)) {
-                    map.put("status", 200);
-                    map.put("mess", "登录成功");
-                } else {
-                    map.put("status", 201);
-                    map.put("data", null);
-                    map.put("mess", "密码错误");
-                }
-            } else {
-                map.put("status", 202);
-                map.put("data", null);
-                map.put("mess", "账号不存在");
-            }
-        } catch (Exception e) {
-            map.put("status", 500);
-            map.put("data", null);
-            map.put("mess", "发生错误");
-        }
-        return map;
     }
 
     public static class ImportResult {

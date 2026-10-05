@@ -7,7 +7,6 @@ import java.awt.event.FocusEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
-import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -216,31 +215,13 @@ public class ContactEditWindow extends JFrame {
             String cJobTitleValue = getTextField("c_job_title_textField");
             String notesValue = getTextField("notes_textField");
 
-            cNameValue = cNameValue.replace("'", "''");
-            cNicknameValue = cNicknameValue.replace("'", "''");
-            cPhoneValue = cPhoneValue.replace("'", "''");
-            cEmailValue = cEmailValue.replace("'", "''");
-            cAddressValue = cAddressValue.replace("'", "''");
-            cCompanyValue = cCompanyValue.replace("'", "''");
-            cJobTitleValue = cJobTitleValue.replace("'", "''");
-            notesValue = notesValue.replace("'", "''");
-
+            cNameValue = cNameValue.trim();
             try {
-                Statement statement = Utils.getStatement();
-                int affected;
-                if (!isEdit) {
-                    String sql = "insert into contact(c_name,c_nickname,c_phone,c_email,c_address,c_company,c_job_title,notes) "
-                            + "values('" + cNameValue + "','" + cNicknameValue + "','" + cPhoneValue + "','"
-                            + cEmailValue + "','" + cAddressValue + "','" + cCompanyValue + "','"
-                            + cJobTitleValue + "','" + notesValue + "')";
-                    affected = statement.executeUpdate(sql);
-                } else {
-                    String sql = "update contact set c_name='" + cNameValue + "',c_nickname='" + cNicknameValue
-                            + "',c_phone='" + cPhoneValue + "',c_email='" + cEmailValue + "',c_address='"
-                            + cAddressValue + "',c_company='" + cCompanyValue + "',c_job_title='"
-                            + cJobTitleValue + "',notes='" + notesValue + "' where c_id='" + cIdValue + "'";
-                    affected = statement.executeUpdate(sql);
-                }
+                int affected = isEdit
+                        ? Utils.updateContact(cIdValue, cNameValue, cNicknameValue, cPhoneValue, cEmailValue,
+                                cAddressValue, cCompanyValue, cJobTitleValue, notesValue)
+                        : Utils.insertContact(cNameValue, cNicknameValue, cPhoneValue, cEmailValue,
+                                cAddressValue, cCompanyValue, cJobTitleValue, notesValue);
                 if (affected > 0) {
                     closeWindow(true);
                 } else {
