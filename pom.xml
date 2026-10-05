@@ -39,6 +39,12 @@
     <build>
         <!-- 保持现有目录结构，源码直接位于 src/ 下 -->
         <sourceDirectory>src</sourceDirectory>
+        <!-- Geist 字体等资源，运行时从 classpath 的 /fonts 加载 -->
+        <resources>
+            <resource>
+                <directory>resources</directory>
+            </resource>
+        </resources>
         <finalName>${project.artifactId}</finalName>
         <plugins>
             <plugin>

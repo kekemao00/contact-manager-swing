@@ -34,7 +34,7 @@
 | 🔍 **全局模糊搜索** | 实时过滤，输入即搜，支持姓名、公司、电话、邮箱等多字段匹配 |
 | 📤 **CSV 导入导出** | 方便批量导入历史数据，随时备份导出 |
 | 🔒 **自动备份** | 每次启动自动备份，保留最近 5 份，存储在用户文档目录 |
-| 🎨 **现代化 UI** | 卡片式布局、扁平化按钮、交替行配色、焦点高亮、实时时钟 |
+| 🎨 **重做的界面** | 暖灰底、黑白组件、Geist 字体；按钮、面板、通知都由同一个形状弹簧变形，`Ctrl/⌘ + K` 命令面板 |
 | 📦 **绿色免安装** | 内嵌 JRE，打包为 Windows 绿色版，解压即用，无需安装 Java 环境 |
 
 ---
@@ -72,7 +72,7 @@
 > ⚠️ 首次登录后建议修改默认密码，毕竟 `123456` 这种密码连我同事都能猜到。使用默认密码登录时会自动弹出修改提示，之后也可以在主界面右上角点「修改密码」。
 >
 > 忘记密码？带上 `--reset-password` 参数启动一次即可把 `admin` 的密码重置为默认密码：
-> `java -cp "out;lib/*" me.kekemao.Main --reset-password`
+> `java -jar contact-manager-swing-<版本>.jar --reset-password`
 
 已安装 Java 21+ 的用户，也可以下载 `contact-manager-swing-<版本>.jar`，直接运行：
 
@@ -140,11 +140,14 @@ ContactManager/
 │   ├── Main.java               # 程序入口
 │   ├── LoginGUI.java           # 登录界面
 │   ├── AccountService.java     # 账号逻辑（密码哈希、登录锁定、修改密码）
-│   ├── ChangePasswordDialog.java # 修改密码弹窗
-│   ├── ContactWindow.java      # 联系人主界面（列表、搜索、分类筛选）
-│   ├── ContactEditWindow.java  # 联系人编辑弹窗
-│   ├── Theme.java              # 全局主题与 UI 组件工厂
-│   └── Utils.java              # 数据库操作、导入导出、备份等工具类
+│   ├── ChangePasswordSheet.java # 修改密码面板
+│   ├── ContactWindow.java      # 联系人主界面（列表、搜索、分类标签）
+│   ├── ContactEditSheet.java   # 新增 / 编辑联系人面板
+│   ├── CommandPalette.java     # Ctrl/⌘ + K 命令面板
+│   ├── Theme.java              # 全局主题入口、提示与确认
+│   ├── Utils.java              # 数据库操作、导入导出、备份等工具类
+│   └── ui/                     # 颜色、字体、弹簧动画与通用组件
+├── resources/fonts/            # Geist 字体（SIL OFL 1.1）
 ├── .github/workflows/          # CI 与自动发布
 ├── pom.xml                     # Maven 构建配置
 └── .gitignore

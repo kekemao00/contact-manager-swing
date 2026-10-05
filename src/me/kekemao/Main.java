@@ -8,6 +8,9 @@ public class Main {
     private static final String RESET_PASSWORD_ARG = "--reset-password";
 
     public static void main(String[] args) {
+        // 文字抗锯齿跟随系统设置，并让 Swing 自带组件用上平滑字体
+        System.setProperty("awt.useSystemAAFontSettings", "on");
+        System.setProperty("swing.aatext", "true");
         boolean resetPassword = Arrays.asList(args).contains(RESET_PASSWORD_ARG);
         SwingUtilities.invokeLater(() -> {
             Theme.init();
