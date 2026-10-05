@@ -195,9 +195,17 @@ public class FlatButton extends JButton {
             g.draw(shape);
         }
         if (f > 0.01) {
-            g.setColor(Palette.alpha(Palette.ACCENT, f));
-            g.setStroke(new BasicStroke(2f));
-            g.draw(new RoundRectangle2D.Double(1, 1, w - 2, ht - 2, radius * 2 - 1, radius * 2 - 1));
+            boolean filled = kind == Kind.PRIMARY || kind == Kind.ACCENT || kind == Kind.DANGER;
+            if (filled) {
+                // 实心按钮上用一圈内描白线表示键盘焦点，避免两种颜色撞在一起
+                g.setColor(Palette.alpha(Color.WHITE, 0.85 * f));
+                g.setStroke(new BasicStroke(1.5f));
+                g.draw(new RoundRectangle2D.Double(3, 3, w - 6, ht - 6, radius * 2 - 5, radius * 2 - 5));
+            } else {
+                g.setColor(Palette.alpha(Palette.ACCENT, f));
+                g.setStroke(new BasicStroke(2f));
+                g.draw(new RoundRectangle2D.Double(1, 1, w - 2, ht - 2, radius * 2 - 1, radius * 2 - 1));
+            }
         }
         paintContent(g, w, ht, foreground());
     }

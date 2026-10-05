@@ -90,6 +90,7 @@ public class MorphButton extends FlatButton {
         double r = radius + (ht / 2 - radius) * (1 - Motion.clamp01(e));
         Color base = Palette.mix(Palette.INK, Palette.INK_HOVER, state == State.IDLE ? h : 0);
         base = Palette.mix(base, Color.BLACK, p * 0.6);
+        if (!isEnabled() && state == State.IDLE) base = Palette.mix(base, Palette.INK_3, 0.55);
         Color fill = Palette.mix(base, Palette.DANGER, danger.get());
         RoundRectangle2D shape = new RoundRectangle2D.Double(x + 0.5, 0.5, bw - 1, ht - 1, r * 2, r * 2);
         g.setColor(fill);

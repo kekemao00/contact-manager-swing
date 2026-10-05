@@ -40,13 +40,16 @@ public class StyledTable extends JTable {
     private final SpringValue selA = new SpringValue(this, Spring.SNAPPY, 0);
     private int hoverRow = -1;
     private double reloadAt = -100;
+    private String emptyTitle;
+    private String emptyHint;
 
     public StyledTable(TableModel model) {
         super(model);
         setRowHeight(46);
         setShowGrid(false);
         setIntercellSpacing(new Dimension(0, 0));
-        setOpaque(true);
+        // 背景、悬停和选中高亮都由 paintComponent 自己画，不让 UI 再铺一层底色盖住
+        setOpaque(false);
         setBackground(Palette.SURFACE);
         setForeground(Palette.INK);
         setSelectionBackground(Palette.ACCENT_SOFT);
@@ -77,7 +80,8 @@ public class StyledTable extends JTable {
                 BorderFactory.createEmptyBorder(0, 13, 0, 12)));
         editor.setBackground(Palette.SURFACE);
         DefaultCellEditor ce = new DefaultCellEditor(editor);
-        ce.setClickCountToStart(2);
+        // 双击留给“打开编辑面板”，行内编辑用直接打字或 F2 开始
+        ce.setClickCountToStart(Integer.MAX_VALUE);
         setDefaultEditor(Object.class, ce);
 
         MouseAdapter m = new MouseAdapter() {
@@ -110,6 +114,13 @@ public class StyledTable extends JTable {
                 selA.set(1);
             }
         });
+    }
+
+    /** 没有数据时显示的说明。 */
+    public void setEmptyText(String title, String hint) {
+        this.emptyTitle = title;
+        this.emptyHint = hint;
+        repaint();
     }
 
     public void setCellKind(int column, CellKind kind) {
@@ -163,8 +174,31 @@ public class StyledTable extends JTable {
             if (y < clip.y - rh || y > clip.y + clip.height + rh) continue;
             g.draw(new Line2D.Double(12, y, w - 12, y));
         }
+        if (getRowCount() == 0 && emptyTitle != null) paintEmpty(g);
         g.dispose();
         super.paintComponent(g0);
+    }
+
+    private void paintEmpty(Graphics2D g) {
+        java.awt.Container vp = getParent();
+        double vw = vp != null ? vp.getWidth() : getWidth();
+        double vh = vp != null ? vp.getHeight() : getHeight();
+        double a = Motion.progress(Motion.now() - reloadAt, 0.05, 0.3);
+        if (a <= 0) return;
+        Graphics2D ge = (Graphics2D) g.create();
+        ge.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, (float) a));
+        double cy = vh / 2 - 40;
+        double d = 44;
+        ge.setColor(Palette.SURFACE_2);
+        ge.fill(new Ellipse2D.Double(vw / 2 - d / 2, cy - d / 2, d, d));
+        Glyph.SEARCH.paint(ge, vw / 2 - 10, cy - 10, 20, Palette.INK_2);
+        float tw = Text.width(ge, emptyTitle, Text.TITLE);
+        Text.draw(ge, emptyTitle, (float) (vw / 2 - tw / 2), (float) (cy + d / 2 + 30), Text.TITLE, Palette.INK);
+        if (emptyHint != null) {
+            float hw = Text.width(ge, emptyHint, Text.BODY);
+            Text.draw(ge, emptyHint, (float) (vw / 2 - hw / 2), (float) (cy + d / 2 + 52), Text.BODY, Palette.INK_2);
+        }
+        ge.dispose();
     }
 
     @Override

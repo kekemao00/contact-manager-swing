@@ -25,7 +25,8 @@ import java.awt.geom.RoundRectangle2D;
  * 焦点环和错误态都是弹簧；出错时整个框做一次有阻尼的水平抖动。
  */
 public class TextInput extends JPanel {
-    private static final int RING = 3;
+    /** 焦点环占用的外边距；与其他控件对齐时需要考虑。 */
+    public static final int RING = 3;
 
     private final JTextField field;
     private final Glyph leading;
@@ -61,13 +62,16 @@ public class TextInput extends JPanel {
         setBorder(BorderFactory.createEmptyBorder(RING, left, RING, RING + 4));
 
         field.setOpaque(false);
+        // 宽度由布局决定，不随已输入的文字变长
+        field.setColumns(6);
         field.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
         field.setFont(Fonts.cjk(13.5f, Fonts.Weight.REGULAR));
         field.setForeground(Palette.INK);
         field.setCaretColor(Palette.INK);
+        field.setDisabledTextColor(Palette.INK_3);
         field.setSelectionColor(Palette.ACCENT_SOFT);
         field.setSelectedTextColor(Palette.INK);
-        if (field instanceof JPasswordField) ((JPasswordField) field).setEchoChar('•');
+        if (field instanceof JPasswordField) ((JPasswordField) field).setEchoChar('●');
         add(field, BorderLayout.CENTER);
 
         empty = new SpringValue(this, Spring.SNAPPY, field.getText().isEmpty() ? 1 : 0);
@@ -117,7 +121,7 @@ public class TextInput extends JPanel {
             trailing = new TrailingButton(Glyph.EYE, () -> {
                 JPasswordField pf = (JPasswordField) field;
                 boolean hidden = pf.getEchoChar() != 0;
-                pf.setEchoChar(hidden ? (char) 0 : '•');
+                pf.setEchoChar(hidden ? (char) 0 : '●');
                 return hidden ? Glyph.EYE_OFF : Glyph.EYE;
             }, true);
             add(trailing, BorderLayout.EAST);
@@ -140,6 +144,15 @@ public class TextInput extends JPanel {
             public void removeUpdate(DocumentEvent e) { clearButton.refresh(); }
             public void changedUpdate(DocumentEvent e) { clearButton.refresh(); }
         });
+        return this;
+    }
+
+    /** 在尾部加一个常驻的图标按钮（例如下拉箭头）。 */
+    public TextInput withAction(Glyph glyph, Runnable action) {
+        add(new TrailingButton(glyph, () -> {
+            action.run();
+            return glyph;
+        }, true), BorderLayout.EAST);
         return this;
     }
 
@@ -180,6 +193,11 @@ public class TextInput extends JPanel {
     public Dimension getPreferredSize() {
         Dimension d = super.getPreferredSize();
         return new Dimension(Math.max(d.width, 120), height + RING * 2);
+    }
+
+    @Override
+    public Dimension getMinimumSize() {
+        return new Dimension(80, height + RING * 2);
     }
 
     @Override

@@ -423,6 +423,28 @@ public class Utils {
         }
     }
 
+    /** 数据里实际出现过的分类（显示值），内置分类按默认顺序在前，其余按名称排在后面。 */
+    public static List<String> listContactCategories() throws Exception {
+        Set<String> present = new HashSet<>();
+        try (PreparedStatement statement = conn.prepareStatement(
+                "select distinct " + CONTACT_CATEGORY_DISPLAY_SQL + " as category from contact");
+             ResultSet rs = statement.executeQuery()) {
+            while (rs.next()) {
+                String value = rs.getString("category");
+                if (!isBlank(value)) present.add(value.trim());
+            }
+        }
+        List<String> result = new ArrayList<>();
+        for (String category : DEFAULT_CONTACT_CATEGORIES) {
+            String display = normalizeCategoryValue(category);
+            if (present.remove(display)) result.add(display);
+        }
+        List<String> rest = new ArrayList<>(present);
+        rest.sort(String::compareTo);
+        result.addAll(rest);
+        return result;
+    }
+
     public static int deleteContact(String cId) throws Exception {
         try (PreparedStatement statement = conn.prepareStatement("delete from contact where c_id=?")) {
             statement.setString(1, cId);
@@ -468,6 +490,12 @@ public class Utils {
     private static void appendContactFilters(StringBuilder sql, List<String> params, Map<String, Object> filters) {
         if (filters == null) {
             return;
+        }
+        // 分类标签筛选，可以和关键词同时生效
+        String category = normalizeFilterValue(filters.get("category"));
+        if (!isBlank(category)) {
+            sql.append(" and (").append(CONTACT_CATEGORY_DISPLAY_SQL).append(") = ?");
+            params.add(category);
         }
         String keyword = normalizeFilterValue(filters.get("keyword"));
         if (!isBlank(keyword)) {
