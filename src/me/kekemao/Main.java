@@ -11,6 +11,8 @@ public class Main {
         // 文字抗锯齿跟随系统设置，并让 Swing 自带组件用上平滑字体
         System.setProperty("awt.useSystemAAFontSettings", "on");
         System.setProperty("swing.aatext", "true");
+        // 检查更新时跟随系统代理设置
+        System.setProperty("java.net.useSystemProxies", "true");
         boolean resetPassword = Arrays.asList(args).contains(RESET_PASSWORD_ARG);
         SwingUtilities.invokeLater(() -> {
             Theme.init();
