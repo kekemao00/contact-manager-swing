@@ -1,7 +1,9 @@
 name: Release
 
-# 推送 v* 标签（如 v1.2.0）时自动构建并发布 GitHub Release；
-# 也可在 Actions 页面手动运行，填入版本号后由 Release 自动在当前提交上创建标签
+# 构建 jar 与 Windows 绿色版并发布到 GitHub Release。三种触发方式：
+# 1. 合并 Release Please 的发版 PR 后由 release-please.yml 调用（日常发版，全自动）
+# 2. 推送 v* 标签（如 v1.2.0）
+# 3. 在 Actions 页面手动运行，填入版本号后由 Release 自动在当前提交上创建标签
 on:
   push:
     tags: ['v*']
@@ -10,6 +12,12 @@ on:
       version:
         description: '版本号，如 2.0.0（带 - 的为预发布版本，如 2.1.0-beta.1）'
         required: true
+  workflow_call:
+    inputs:
+      version:
+        description: '版本号，如 2.1.0'
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -33,7 +41,7 @@ jobs:
         env:
           INPUT_VERSION: ${{ inputs.version }}
         run: |
-          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+          if [[ -n "$INPUT_VERSION" ]]; then
             version="${INPUT_VERSION#v}"
           else
             version="${GITHUB_REF_NAME#v}"
@@ -105,6 +113,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.jar.outputs.tag }}
         run: |
+          # Release Please 已经创建了带更新日志的 Release，只需上传产物
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --clobber
+            exit 0
+          fi
           flags=()
           [[ "$TAG" == *-* ]] && flags+=(--prerelease)
           # 手动运行时标签尚不存在，由 Release 在本次构建的提交上创建

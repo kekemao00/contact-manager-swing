@@ -53,6 +53,11 @@ public class Theme {
         UIManager.put("MenuItem.selectionBackground", new ColorUIResource(Palette.SURFACE_3));
         UIManager.put("MenuItem.selectionForeground", new ColorUIResource(Palette.INK));
         UIManager.put("MenuItem.border", new BorderUIResource(BorderFactory.createEmptyBorder(7, 12, 7, 16)));
+        UIManager.put("CheckBoxMenuItem.background", new ColorUIResource(Palette.SURFACE));
+        UIManager.put("CheckBoxMenuItem.foreground", new ColorUIResource(Palette.INK));
+        UIManager.put("CheckBoxMenuItem.selectionBackground", new ColorUIResource(Palette.SURFACE_3));
+        UIManager.put("CheckBoxMenuItem.selectionForeground", new ColorUIResource(Palette.INK));
+        UIManager.put("CheckBoxMenuItem.border", new BorderUIResource(BorderFactory.createEmptyBorder(7, 12, 7, 16)));
         UIManager.put("Separator.foreground", new ColorUIResource(Palette.LINE));
 
         // 悬停提示：墨黑底白字

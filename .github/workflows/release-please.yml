@@ -1,0 +1,39 @@
+name: Release Please
+
+# 合并到 main 的提交按 Conventional Commits（feat: / fix: / feat!: …）累积到一个自动维护的发版 PR，
+# PR 里包含版本号升级和 CHANGELOG。合并这个发版 PR 后自动打标签、创建 Release，并构建上传 jar 与 Windows 绿色版。
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.rp.outputs.release_created }}
+      version: ${{ steps.rp.outputs.version }}
+    steps:
+      - id: rp
+        uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  # GITHUB_TOKEN 创建的标签和 Release 不会触发其他工作流，所以在这里直接调用构建发布流程
+  build:
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    uses: ./.github/workflows/release.yml
+    with:
+      version: ${{ needs.release-please.outputs.version }}
+    permissions:
+      contents: write

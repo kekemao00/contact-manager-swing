@@ -152,24 +152,28 @@ java -jar target/contact-manager-swing.jar
 项目使用 GitHub Actions：
 
 - **CI**（`.github/workflows/ci.yml`）：推送到 `main` 或提交 PR 时自动编译、测试，并上传可运行 jar 作为构建产物。
-- **Release**（`.github/workflows/release.yml`）：推送 `v*` 标签时自动构建，并发布 GitHub Release，附带：
+- **Release Please**（`.github/workflows/release-please.yml`）：合并到 `main` 的改动会自动累积到一个**发版 PR** 里，PR 中包含按提交信息推算的新版本号和 `CHANGELOG.md`。**合并这个发版 PR 即发布**：自动打标签、创建 GitHub Release 并上传：
   - `contact-manager-swing-<版本>.jar`：跨平台可运行 jar（需 Java 21+）
   - `ContactManager-<版本>-windows-x64.zip`：内嵌 JRE 的 Windows 绿色版
 
-> 合并 PR 到 `main` **不会**自动发版，只会跑 CI。需要发布时用下面任意一种方式：
+版本号按 [Conventional Commits](https://www.conventionalcommits.org/zh-hans/) 推算：
 
-**方式 A：推送标签**
+| 提交信息 | 版本变化 |
+|------|------|
+| `fix: …` | 修订号 +1（2.0.0 → 2.0.1） |
+| `feat: …` | 次版本号 +1（2.0.0 → 2.1.0） |
+| `feat!: …` 或正文含 `BREAKING CHANGE:` | 主版本号 +1（2.0.0 → 3.0.0） |
+| `docs:` / `ci:` / `chore:` 等 | 不单独触发发版 |
 
-```bash
-git tag v2.0.0
-git push origin v2.0.0
-```
+> 首次使用需在仓库 **Settings → Actions → General** 勾选 *Allow GitHub Actions to create and approve pull requests*，否则 Release Please 无法创建发版 PR。
 
-**方式 B：在网页上手动运行**
+也可以跳过发版 PR 手动发布（`.github/workflows/release.yml`）：推送 `v*` 标签，或打开 [Actions → Release](https://github.com/kekemao00/contact-manager-swing/actions/workflows/release.yml) 点 **Run workflow** 填入版本号。版本号带 `-`（如 `2.1.0-beta.1`）时会发布为预发布版本。
 
-打开 [Actions → Release](https://github.com/kekemao00/contact-manager-swing/actions/workflows/release.yml)，点 **Run workflow**，填入版本号（如 `2.0.0`），Release 会在 `main` 当前提交上自动创建标签。
+## 🔔 检查更新
 
-版本号带 `-`（如 `v2.1.0-beta.1`）时会发布为预发布版本。
+打包发布的版本启动后会在后台检查 GitHub 上的最新正式版本（每天最多一次，网络不通时不打扰）。发现新版本时顶部会出现提示，点击可查看更新内容并前往下载，也可以跳过这个版本。
+
+也可以随时在右上角账号菜单或命令面板（`Ctrl/⌘ + K`）里选择 **检查更新**；账号菜单里可以关闭启动时的自动检查。检查更新只读取公开的版本信息，不会上传任何数据。
 
 ---
 
@@ -199,6 +203,8 @@ ContactManager/
 │   ├── ContactWindow.java      # 联系人主界面（列表、搜索、分类标签）
 │   ├── ContactEditSheet.java   # 新增 / 编辑联系人面板
 │   ├── CommandPalette.java     # Ctrl/⌘ + K 命令面板
+│   ├── UpdateChecker.java      # 检查更新（GitHub Releases）
+│   ├── UpdateSheet.java        # 新版本面板
 │   ├── Theme.java              # 全局主题入口、提示与确认
 │   ├── Utils.java              # 数据库操作、导入导出、备份等工具类
 │   └── ui/                     # 颜色、字体、弹簧动画与通用组件
@@ -213,7 +219,7 @@ ContactManager/
 
 ## 📄 数据存储
 
-所有数据完全本地存储，不联网，不上云：
+所有数据完全本地存储，不上云（唯一的联网是检查更新，只读取公开的版本号）：
 
 ```
 ~/Documents/通讯录数据/

@@ -84,6 +84,7 @@ public class ContactWindow extends JFrame {
         setVisible(true);
         Fade.in(getRootPane());
         schedulePageSizeRefresh();
+        UpdateChecker.checkOnStartup(this);
     }
 
     // ================= 界面 =================
@@ -366,7 +367,16 @@ public class ContactWindow extends JFrame {
         change.addActionListener(e -> ChangePasswordSheet.open(this, null));
         JMenuItem logout = new JMenuItem("退出登录", Glyph.LOGOUT.icon(16, Palette.INK_2));
         logout.addActionListener(e -> logout());
+        JMenuItem update = new JMenuItem("检查更新（当前 " + UpdateChecker.displayVersion() + "）",
+                Glyph.DOWNLOAD.icon(16, Palette.INK_2));
+        update.addActionListener(e -> checkForUpdates());
+        JCheckBoxMenuItem autoUpdate = new JCheckBoxMenuItem("启动时自动检查更新", UpdateChecker.isAutoCheckEnabled());
+        autoUpdate.addActionListener(e -> UpdateChecker.setAutoCheckEnabled(autoUpdate.isSelected()));
         menu.add(change);
+        menu.addSeparator();
+        menu.add(update);
+        menu.add(autoUpdate);
+        menu.addSeparator();
         menu.add(logout);
         menu.show(anchor, anchor.getWidth() - menu.getPreferredSize().width, anchor.getHeight() + 6);
     }
@@ -399,6 +409,10 @@ public class ContactWindow extends JFrame {
             return;
         }
         editSheet = ContactEditSheet.open(this, contact, from, fromBounds);
+    }
+
+    void checkForUpdates() {
+        UpdateChecker.checkNow(this);
     }
 
     void focusSearch() {

@@ -65,6 +65,7 @@ final class CommandPalette {
         actions.add(new Item("导出为 CSV", "按当前筛选", Glyph.DOWNLOAD, false, owner::exportContacts));
         actions.add(new Item("搜索框", "Ctrl+F", Glyph.SEARCH, false, owner::focusSearch));
         actions.add(new Item("修改密码", null, Glyph.LOCK, false, () -> ChangePasswordSheet.open(owner, null)));
+        actions.add(new Item("检查更新", UpdateChecker.displayVersion(), Glyph.DOWNLOAD, false, owner::checkForUpdates));
         actions.add(new Item("退出登录", null, Glyph.LOGOUT, false, owner::logout));
     }
 
