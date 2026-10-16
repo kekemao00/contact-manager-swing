@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.4.0](https://github.com/kekemao00/contact-manager-swing/compare/v2.3.0...v2.4.0) (2026-10-16)
+
+
+### ✨ 新功能
+
+* 应用内更新，后台下载校验后一键重启 ([a706d1c](https://github.com/kekemao00/contact-manager-swing/commit/a706d1c85957af73133a848d802656cbc4feb47d))
+* 应用内更新，后台下载校验后一键重启 ([9eaac0c](https://github.com/kekemao00/contact-manager-swing/commit/9eaac0c9fee0002a4318433633b1cc06a3b1bb49))
+* 联系人分享（分享码、二维码图片、在线口令，剪贴板自动识别） ([eb8d5ef](https://github.com/kekemao00/contact-manager-swing/commit/eb8d5ef20a555ee9204a4b2dc074310cb81f74d8))
+* 联系人分享（分享码、二维码图片、在线口令，剪贴板自动识别） ([d9c3c5a](https://github.com/kekemao00/contact-manager-swing/commit/d9c3c5abf0e734530bbea62d7b27c3bbfe0fb970))
+
 ## [2.3.0](https://github.com/kekemao00/contact-manager-swing/compare/v2.2.0...v2.3.0) (2026-10-16)
 
 
