@@ -22,7 +22,7 @@ import java.awt.geom.RoundRectangle2D;
 public enum Glyph {
     SEARCH, PLUS, PENCIL, TRASH, DOWNLOAD, UPLOAD, CHEVRON_LEFT, CHEVRON_RIGHT, CHEVRON_DOWN,
     CHECK, X, USER, LOCK, EYE, EYE_OFF, COMMAND, CONTACTS, RESET, ALERT, INFO, FOLDER,
-    LOGOUT, ENTER, COPY, ARROW_UP_DOWN;
+    LOGOUT, ENTER, COPY, ARROW_UP_DOWN, SHARE, QR, KEY;
 
     public static final float STROKE = 1.5f;
 
@@ -164,6 +164,29 @@ public enum Glyph {
             case ARROW_UP_DOWN:
                 s.moveTo(8, 9); s.lineTo(12, 5); s.lineTo(16, 9);
                 s.moveTo(8, 15); s.lineTo(12, 19); s.lineTo(16, 15);
+                break;
+            case SHARE:
+                s.moveTo(19.5f, 13.5f); s.lineTo(19.5f, 17.5f); s.quadTo(19.5f, 19.5f, 17.5f, 19.5f);
+                s.lineTo(6.5f, 19.5f); s.quadTo(4.5f, 19.5f, 4.5f, 17.5f); s.lineTo(4.5f, 6.5f);
+                s.quadTo(4.5f, 4.5f, 6.5f, 4.5f); s.lineTo(10.5f, 4.5f);
+                line(s, 11, 13, 19.5f, 4.5f);
+                s.moveTo(14, 4.5f); s.lineTo(19.5f, 4.5f); s.lineTo(19.5f, 10);
+                break;
+            case QR:
+                s.append(new RoundRectangle2D.Float(4, 4, 6.5f, 6.5f, 2.5f, 2.5f), false);
+                s.append(new RoundRectangle2D.Float(13.5f, 4, 6.5f, 6.5f, 2.5f, 2.5f), false);
+                s.append(new RoundRectangle2D.Float(4, 13.5f, 6.5f, 6.5f, 2.5f, 2.5f), false);
+                line(s, 14, 14, 14, 16.5f);
+                line(s, 17, 14, 20, 14);
+                line(s, 17, 17, 17, 20);
+                line(s, 20, 17.5f, 20, 20);
+                line(s, 14, 20, 14, 20.2f);
+                break;
+            case KEY:
+                s.append(new Ellipse2D.Float(3.5f, 11.5f, 8, 8), false);
+                line(s, 10.3f, 12.7f, 19.5f, 3.5f);
+                line(s, 16, 7, 18.5f, 9.5f);
+                line(s, 13.5f, 9.5f, 15.5f, 11.5f);
                 break;
         }
         return s;

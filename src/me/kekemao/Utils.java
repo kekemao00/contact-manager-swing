@@ -517,6 +517,63 @@ public class Utils {
         }
     }
 
+    /** 按编号取联系人的全部可分享字段（分类为显示值），保持传入的顺序。 */
+    public static List<Map<String, Object>> loadContacts(List<String> ids) throws Exception {
+        List<Map<String, Object>> list = new ArrayList<>();
+        try (PreparedStatement statement = conn.prepareStatement(
+                "select c_id,c_name,c_nickname,c_phone,c_email,c_address,c_company,c_job_title,notes from contact where c_id=?")) {
+            for (String id : ids) {
+                statement.setString(1, id);
+                try (ResultSet rs = statement.executeQuery()) {
+                    if (!rs.next()) continue;
+                    Map<String, Object> map = new HashMap<>();
+                    for (String f : new String[]{"c_id", "c_name", "c_phone", "c_email", "c_address", "c_company", "c_job_title", "notes"}) {
+                        map.put(f, rs.getString(f));
+                    }
+                    map.put("c_nickname", toContactCategoryDisplayValue(rs.getString("c_nickname")));
+                    list.add(map);
+                }
+            }
+        }
+        return list;
+    }
+
+    /** 判断重复用的键：姓名 + 电话里的数字。 */
+    public static String contactKey(String name, String phone) {
+        return (name == null ? "" : name.trim()) + "|" + (phone == null ? "" : phone.replaceAll("\\D", ""));
+    }
+
+    /** 本地已有联系人的 {@link #contactKey} 集合，用来在导入分享前标出重复的人。 */
+    public static Set<String> existingContactKeys() throws Exception {
+        Set<String> keys = new HashSet<>();
+        try (PreparedStatement statement = conn.prepareStatement("select c_name,c_phone from contact");
+             ResultSet rs = statement.executeQuery()) {
+            while (rs.next()) keys.add(contactKey(rs.getString(1), rs.getString(2)));
+        }
+        return keys;
+    }
+
+    /** 一次性新增多位联系人（每行字段顺序同 {@link ContactShare#FIELDS}，分类为显示值），失败时整体回滚。 */
+    public static int insertContacts(List<String[]> rows) throws Exception {
+        boolean autoCommit = conn.getAutoCommit();
+        conn.setAutoCommit(false);
+        int inserted = 0;
+        try (PreparedStatement statement = conn.prepareStatement(
+                "insert into contact(c_name,c_nickname,c_phone,c_email,c_address,c_company,c_job_title,notes) values(?,?,?,?,?,?,?,?)")) {
+            for (String[] r : rows) {
+                bindContactStatement(statement, r[0], toContactCategoryStoredValue(r[1]), r[2], r[3], r[4], r[5], r[6], r[7]);
+                inserted += statement.executeUpdate();
+            }
+            conn.commit();
+        } catch (Exception e) {
+            conn.rollback();
+            throw e;
+        } finally {
+            conn.setAutoCommit(autoCommit);
+        }
+        return changed(inserted);
+    }
+
     /** 按筛选条件列出全部联系人编号（不分页）。 */
     public static List<String> listContactIds(Map<String, Object> filters) throws Exception {
         StringBuilder sql = new StringBuilder("select c_id from contact where 1=1");

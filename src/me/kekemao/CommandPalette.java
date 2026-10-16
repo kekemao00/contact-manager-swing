@@ -62,6 +62,8 @@ final class CommandPalette {
         actions.add(new Item("修改选中的联系人", "Enter", Glyph.PENCIL, false, owner::openEditSheet));
         actions.add(new Item("批量修改", "选中的或当前筛选结果", Glyph.PENCIL, false, owner::openBatchEditSheet));
         actions.add(new Item("删除选中的联系人", "Delete", Glyph.TRASH, false, owner::deleteSelected));
+        actions.add(new Item("分享联系人", "生成分享码、二维码或口令", Glyph.SHARE, false, owner::shareContacts));
+        actions.add(new Item("接收分享", "粘贴分享码、口令或二维码", Glyph.DOWNLOAD, false, owner::receiveShare));
         actions.add(new Item("导入联系人", "Ctrl+I", Glyph.UPLOAD, false, owner::importContacts));
         actions.add(new Item("导出联系人", "Ctrl+E", Glyph.DOWNLOAD, false, owner::exportContacts));
         actions.add(new Item("搜索框", "Ctrl+F", Glyph.SEARCH, false, owner::focusSearch));
