@@ -15,6 +15,8 @@ public class SheetLayout extends JPanel {
     private final JPanel footer = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
     private final FlatButton close = new FlatButton("", Glyph.X, FlatButton.Kind.GHOST);
     private final JPanel footerLeft = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+    private final TextView titleView;
+    private TextView subtitleView;
 
     public SheetLayout(String title, String subtitle) {
         super(new BorderLayout());
@@ -27,11 +29,13 @@ public class SheetLayout extends JPanel {
         titles.setOpaque(false);
         titles.setLayout(new BoxLayout(titles, BoxLayout.Y_AXIS));
         TextView t = new TextView(title, Text.TITLE, Palette.INK);
+        titleView = t;
         t.setAlignmentX(Component.LEFT_ALIGNMENT);
         titles.add(t);
         if (subtitle != null) {
             titles.add(Box.createVerticalStrut(2));
             TextView s = new TextView(subtitle, Text.SMALL, Palette.INK_2);
+            subtitleView = s;
             s.setAlignmentX(Component.LEFT_ALIGNMENT);
             titles.add(s);
         }
@@ -57,6 +61,15 @@ public class SheetLayout extends JPanel {
         bottom.add(footerLeft, BorderLayout.WEST);
         bottom.add(footer, BorderLayout.EAST);
         add(bottom, BorderLayout.SOUTH);
+    }
+
+    /** 换标题时文字在模糊里切换。 */
+    public void setTitle(String title) {
+        titleView.setText(title);
+    }
+
+    public void setSubtitle(String subtitle) {
+        if (subtitleView != null) subtitleView.setText(subtitle);
     }
 
     public JPanel body() {

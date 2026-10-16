@@ -8,12 +8,20 @@ public class Main {
     private static final String RESET_PASSWORD_ARG = "--reset-password";
 
     public static void main(String[] args) {
+        if (Arrays.asList(args).contains(Updater.FINISH_ARG)) {
+            // 应用内更新的辅助进程：等旧程序退出后替换 jar，没有界面
+            Updater.finishUpdate(args);
+            return;
+        }
         // 文字抗锯齿跟随系统设置，并让 Swing 自带组件用上平滑字体
         System.setProperty("awt.useSystemAAFontSettings", "on");
         System.setProperty("swing.aatext", "true");
         // 检查更新时跟随系统代理设置
         System.setProperty("java.net.useSystemProxies", "true");
         boolean resetPassword = Arrays.asList(args).contains(RESET_PASSWORD_ARG);
+        // 应用内更新后重启：令牌有效时直接回到原来的账号，不用再输一次密码
+        String resumeUser = Updater.consumeResume(args);
+        UpdateChecker.afterLaunch();
         SwingUtilities.invokeLater(() -> {
             Theme.init();
             String initError = Utils.getInitError();
@@ -29,6 +37,10 @@ public class Main {
                 } else {
                     Theme.showMessage(null, "重置密码失败", -1);
                 }
+            }
+            if (resumeUser != null && AccountService.resume(resumeUser)) {
+                new ContactWindow();
+                return;
             }
             new LoginGUI();
         });
