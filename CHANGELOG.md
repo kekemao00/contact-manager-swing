@@ -1,5 +1,15 @@
 # Changelog
 
+## [2.2.0](https://github.com/kekemao00/contact-manager-swing/compare/v2.1.0...v2.2.0) (2026-10-16)
+
+
+### ✨ 新功能
+
+* 导入导出收进带文字的下拉菜单，不再被误认为翻页 ([1616089](https://github.com/kekemao00/contact-manager-swing/commit/1616089263537b67ee556c97749054b6cf670a15))
+* 导入导出收进带文字的下拉菜单，不再被误认为翻页 ([dc83b30](https://github.com/kekemao00/contact-manager-swing/commit/dc83b307d8fd33027716715f37763e857c554535))
+* 联系人批量修改 ([cdd8a1b](https://github.com/kekemao00/contact-manager-swing/commit/cdd8a1b568d1b29fb23d6f81854329a2a13a8961))
+* 联系人批量修改 ([8f37d91](https://github.com/kekemao00/contact-manager-swing/commit/8f37d9155ce7cc721b2b42e638b24db16ac8f76b))
+
 ## [2.1.0](https://github.com/kekemao00/contact-manager-swing/compare/v2.0.0...v2.1.0) (2026-10-15)
 
 
