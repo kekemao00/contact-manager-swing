@@ -60,6 +60,7 @@ final class CommandPalette {
         this.owner = owner;
         actions.add(new Item("新增联系人", "Ctrl+N", Glyph.PLUS, false, () -> owner.showEditSheet(null, null, null)));
         actions.add(new Item("修改选中的联系人", "Enter", Glyph.PENCIL, false, owner::openEditSheet));
+        actions.add(new Item("批量修改", "选中的或当前筛选结果", Glyph.PENCIL, false, owner::openBatchEditSheet));
         actions.add(new Item("删除选中的联系人", "Delete", Glyph.TRASH, false, owner::deleteSelected));
         actions.add(new Item("从 CSV 导入", null, Glyph.UPLOAD, false, owner::importContacts));
         actions.add(new Item("导出为 CSV", "按当前筛选", Glyph.DOWNLOAD, false, owner::exportContacts));
