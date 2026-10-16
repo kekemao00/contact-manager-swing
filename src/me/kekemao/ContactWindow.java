@@ -87,6 +87,7 @@ public class ContactWindow extends JFrame {
         Fade.in(getRootPane());
         schedulePageSizeRefresh();
         UpdateChecker.checkOnStartup(this);
+        CloudBackup.onStartup(this);
     }
 
     // ================= 界面 =================
@@ -396,11 +397,38 @@ public class ContactWindow extends JFrame {
         autoUpdate.addActionListener(e -> UpdateChecker.setAutoCheckEnabled(autoUpdate.isSelected()));
         menu.add(change);
         menu.addSeparator();
+        addCloudBackupItems(menu);
+        menu.addSeparator();
         menu.add(update);
         menu.add(autoUpdate);
         menu.addSeparator();
         menu.add(logout);
         menu.show(anchor, anchor.getWidth() - menu.getPreferredSize().width, anchor.getHeight() + 6);
+    }
+
+    private void addCloudBackupItems(JPopupMenu menu) {
+        boolean enabled = CloudBackup.isEnabled();
+        CloudBackup.CloudFolder folder = enabled ? CloudBackup.getFolder() : null;
+        List<CloudBackup.CloudFolder> detected = enabled ? Collections.emptyList() : CloudBackup.detectFolders();
+        String target = folder != null ? folder.inline() : detected.isEmpty() ? "网盘" : detected.get(0).inline();
+        JCheckBoxMenuItem toggle = new JCheckBoxMenuItem("自动备份到" + target.stripTrailing(), enabled);
+        toggle.addActionListener(e -> CloudBackup.toggle(this, toggle.isSelected()));
+        menu.add(toggle);
+        if (enabled) {
+            JMenuItem now = new JMenuItem("立即备份（" + CloudBackup.statusText() + "）",
+                    Glyph.UPLOAD.icon(16, Palette.INK_2));
+            now.addActionListener(e -> CloudBackup.backupNowWithFeedback(this));
+            JMenuItem open = new JMenuItem("打开备份文件夹", Glyph.FOLDER.icon(16, Palette.INK_2));
+            open.addActionListener(e -> CloudBackup.openFolder(this));
+            menu.add(now);
+            menu.add(open);
+        }
+        JMenuItem choose = new JMenuItem(enabled ? "更换备份文件夹…" : "备份到其他文件夹…");
+        choose.addActionListener(e -> CloudBackup.chooseFolder(this));
+        JMenuItem restore = new JMenuItem("从云端备份恢复…", Glyph.RESET.icon(16, Palette.INK_2));
+        restore.addActionListener(e -> CloudBackup.restoreLatest(this));
+        menu.add(choose);
+        menu.add(restore);
     }
 
     static boolean isMac() {

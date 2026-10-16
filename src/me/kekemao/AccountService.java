@@ -213,6 +213,7 @@ public final class AccountService {
             update.setString(2, username);
             update.executeUpdate();
         }
+        CloudBackup.changed();
     }
 
     // ========== 密码哈希 ==========

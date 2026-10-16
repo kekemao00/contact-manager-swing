@@ -65,6 +65,10 @@ final class CommandPalette {
         actions.add(new Item("导入联系人", "Ctrl+I", Glyph.UPLOAD, false, owner::importContacts));
         actions.add(new Item("导出联系人", "Ctrl+E", Glyph.DOWNLOAD, false, owner::exportContacts));
         actions.add(new Item("搜索框", "Ctrl+F", Glyph.SEARCH, false, owner::focusSearch));
+        actions.add(new Item(CloudBackup.isEnabled() ? "立即备份到云端" : "开启云端备份",
+                CloudBackup.isEnabled() ? CloudBackup.statusText() : null, Glyph.UPLOAD, false,
+                () -> CloudBackup.backupNowWithFeedback(owner)));
+        actions.add(new Item("从云端备份恢复", null, Glyph.RESET, false, () -> CloudBackup.restoreLatest(owner)));
         actions.add(new Item("修改密码", null, Glyph.LOCK, false, () -> ChangePasswordSheet.open(owner, null)));
         actions.add(new Item("检查更新", UpdateChecker.displayVersion(), Glyph.DOWNLOAD, false, owner::checkForUpdates));
         actions.add(new Item("退出登录", null, Glyph.LOGOUT, false, owner::logout));
