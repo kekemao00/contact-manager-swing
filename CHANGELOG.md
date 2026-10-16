@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.3.0](https://github.com/kekemao00/contact-manager-swing/compare/v2.2.0...v2.3.0) (2026-10-16)
+
+
+### ✨ 新功能
+
+* 一键云端备份到网盘同步文件夹 ([141df78](https://github.com/kekemao00/contact-manager-swing/commit/141df78416b555b94feeaa553ab7fefb1f8a583f))
+* 一键云端备份到网盘同步文件夹 ([78e2054](https://github.com/kekemao00/contact-manager-swing/commit/78e20544fe4ce3a0388fc1df56a07be724254d2a))
+
 ## [2.2.0](https://github.com/kekemao00/contact-manager-swing/compare/v2.1.0...v2.2.0) (2026-10-16)
 
 
