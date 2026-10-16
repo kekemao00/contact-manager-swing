@@ -279,6 +279,7 @@ public class ContactWindow extends JFrame {
                 table.setToolTipText(value == null || value.toString().isEmpty() ? null : value.toString());
             }
         });
+        table.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         table.setComponentPopupMenu(buildTableMenu());
 
         scrollPane = new JScrollPane(table);
@@ -311,14 +312,17 @@ public class ContactWindow extends JFrame {
         });
         JMenuItem editItem = new JMenuItem("修改此联系人", Glyph.PENCIL.icon(16, Palette.INK_2));
         editItem.addActionListener(ev -> openEditSheet());
+        JMenuItem batchItem = new JMenuItem("批量修改…", Glyph.PENCIL.icon(16, Palette.INK_2));
+        batchItem.addActionListener(ev -> openBatchEditSheet());
         JMenuItem delItem = new JMenuItem("删除此联系人", Glyph.TRASH.icon(16, Palette.DANGER));
         delItem.setForeground(Palette.DANGER);
         delItem.addActionListener(ev -> deleteSelected());
         menu.add(copyItem);
         menu.addSeparator();
         menu.add(editItem);
+        menu.add(batchItem);
         menu.add(delItem);
-        // 右键时先选中鼠标下的那一行
+        // 右键时先选中鼠标下的那一行；点在已选中的行上则保留多选
         menu.addPopupMenuListener(new javax.swing.event.PopupMenuListener() {
             public void popupMenuWillBecomeVisible(javax.swing.event.PopupMenuEvent e) {
                 SwingUtilities.invokeLater(() -> {
@@ -326,8 +330,11 @@ public class ContactWindow extends JFrame {
                     if (p != null) {
                         int row = table.rowAtPoint(p);
                         int col = table.columnAtPoint(p);
-                        if (row >= 0) table.changeSelection(row, Math.max(0, col), false, false);
+                        if (row >= 0 && !table.isRowSelected(row)) table.changeSelection(row, Math.max(0, col), false, false);
                     }
+                    int count = table.getSelectedRowCount();
+                    editItem.setVisible(count <= 1);
+                    delItem.setText(count > 1 ? "删除选中的 " + count + " 位联系人" : "删除此联系人");
                 });
             }
 
@@ -535,15 +542,20 @@ public class ContactWindow extends JFrame {
 
     private void updateSelectionState() {
         int row = table.getSelectedRow();
+        int count = table.getSelectedRowCount();
         boolean selected = row >= 0;
         editButton.setEnabled(selected);
         deleteButton.setEnabled(selected);
-        if (selected) {
+        editButton.setText(count > 1 ? "批量修改 " + count + " 位" : "修改");
+        editButton.setToolTipText(count > 1 ? "把选中的联系人改成同一个地址、公司等" : "修改选中的联系人（双击行）");
+        if (count > 1) {
+            selectionLabel.setText("已选中 " + count + " 位联系人 · 可批量修改");
+        } else if (selected) {
             Object name = model.getValueAt(row, 1);
             selectionLabel.setText("已选中 " + (name != null ? name : "") + " · 双击或回车编辑");
         } else {
             selectionLabel.setText(total > 0 ? "第 " + ((current - 1) * size + 1) + "–"
-                    + Math.min(total, current * size) + " 条，共 " + total + " 条" : "");
+                    + Math.min(total, current * size) + " 条，共 " + total + " 条 · Ctrl/Shift 多选" : "");
         }
     }
 
@@ -672,6 +684,10 @@ public class ContactWindow extends JFrame {
 
     void openEditSheet() {
         if (table.isEditing()) table.getCellEditor().stopCellEditing();
+        if (table.getSelectedRowCount() > 1) {
+            openBatchEditSheet();
+            return;
+        }
         int row = table.getSelectedRow();
         if (row < 0) {
             Theme.showMessage(this, "请先选择一位联系人", Theme.MESSAGE_WARNING);
@@ -683,6 +699,30 @@ public class ContactWindow extends JFrame {
         showEditSheet(contactAtRow(row), table, rowBounds);
     }
 
+    /**
+     * 批量修改选中的联系人；有筛选时还可以一次改全部筛选结果。
+     * 没有选中任何行但有筛选时，直接作用于全部筛选结果。
+     */
+    void openBatchEditSheet() {
+        if (table.isEditing()) table.getCellEditor().stopCellEditing();
+        if (editSheet != null && editSheet.getParent() != null && !editSheet.isClosing()) return;
+        List<Map<String, Object>> contacts = new ArrayList<>();
+        for (int row : table.getSelectedRows()) contacts.add(contactAtRow(row));
+        int filteredTotal = isFiltered() ? total : 0;
+        if (contacts.isEmpty() && filteredTotal == 0) {
+            Theme.showMessage(this, "请先选择联系人（Ctrl/Shift 可多选），或先搜索筛选", Theme.MESSAGE_WARNING);
+            return;
+        }
+        Map<String, Object> filters = getSearchMap();
+        editSheet = BatchEditSheet.open(this, contacts, filteredTotal, () -> {
+            try {
+                return Utils.listContactIds(filters);
+            } catch (Exception e) {
+                throw new IllegalStateException(e.getMessage(), e);
+            }
+        }, editButton.isShowing() ? editButton : null);
+    }
+
     /** 由命令面板直接打开某个联系人。 */
     void openContact(Map<String, Object> contact) {
         showEditSheet(contact, commandButton, null);
@@ -690,6 +730,10 @@ public class ContactWindow extends JFrame {
 
     void deleteSelected() {
         if (table.isEditing()) table.getCellEditor().stopCellEditing();
+        if (table.getSelectedRowCount() > 1) {
+            deleteSelectedRows();
+            return;
+        }
         int row = table.getSelectedRow();
         if (row < 0) {
             Theme.showMessage(this, "请先选择一位联系人", Theme.MESSAGE_WARNING);
@@ -709,6 +753,27 @@ public class ContactWindow extends JFrame {
             refreshCategories();
             initTableData();
             Theme.showMessage(this, "已删除 " + name, Theme.MESSAGE_SUCCESS);
+        } catch (Exception xe) {
+            xe.printStackTrace();
+            Theme.showMessage(this, "删除失败：" + xe.getMessage(), Theme.MESSAGE_ERROR);
+        }
+    }
+
+    private void deleteSelectedRows() {
+        List<String> ids = new ArrayList<>();
+        for (int row : table.getSelectedRows()) {
+            String id = getContactIdAtRow(row);
+            if (!Utils.isBlank(id)) ids.add(id);
+        }
+        if (Theme.showConfirm(this, "删除联系人", "确定删除选中的 " + ids.size() + " 位联系人吗？删除后无法恢复。",
+                "删除", true) != 0) {
+            return;
+        }
+        try {
+            int affected = Utils.deleteContacts(ids);
+            refreshCategories();
+            initTableData();
+            Theme.showMessage(this, "已删除 " + affected + " 位联系人", Theme.MESSAGE_SUCCESS);
         } catch (Exception xe) {
             xe.printStackTrace();
             Theme.showMessage(this, "删除失败：" + xe.getMessage(), Theme.MESSAGE_ERROR);

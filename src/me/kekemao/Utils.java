@@ -423,6 +423,76 @@ public class Utils {
         }
     }
 
+    /** 批量把多位联系人的若干字段改成同一个值，在一个事务里完成。字段名必须在白名单内，姓名不允许批量修改。 */
+    public static int batchUpdateContacts(List<String> ids, Map<String, String> values) throws Exception {
+        if (ids == null || ids.isEmpty() || values == null || values.isEmpty()) return 0;
+        StringBuilder sql = new StringBuilder("update contact set ");
+        List<String> params = new ArrayList<>();
+        for (Map.Entry<String, String> e : values.entrySet()) {
+            String field = e.getKey();
+            if (!CONTACT_EDITABLE_FIELDS.contains(field) || "c_name".equals(field)) {
+                throw new IllegalArgumentException("不支持批量修改字段：" + field);
+            }
+            if (!params.isEmpty()) sql.append(",");
+            sql.append(field).append("=?");
+            params.add(e.getValue() == null ? "" : e.getValue());
+        }
+        sql.append(" where c_id=?");
+
+        boolean autoCommit = conn.getAutoCommit();
+        conn.setAutoCommit(false);
+        try (PreparedStatement statement = conn.prepareStatement(sql.toString())) {
+            int affected = 0;
+            for (String id : ids) {
+                for (int i = 0; i < params.size(); i++) {
+                    statement.setString(i + 1, params.get(i));
+                }
+                statement.setString(params.size() + 1, id);
+                affected += statement.executeUpdate();
+            }
+            conn.commit();
+            return affected;
+        } catch (Exception e) {
+            conn.rollback();
+            throw e;
+        } finally {
+            conn.setAutoCommit(autoCommit);
+        }
+    }
+
+    /** 按筛选条件列出全部联系人编号（不分页）。 */
+    public static List<String> listContactIds(Map<String, Object> filters) throws Exception {
+        StringBuilder sql = new StringBuilder("select c_id from contact where 1=1");
+        List<String> params = new ArrayList<>();
+        appendContactFilters(sql, params, filters);
+        sql.append(" order by c_id asc");
+        List<String> ids = new ArrayList<>();
+        try (PreparedStatement statement = prepareStatement(sql.toString(), params);
+             ResultSet rs = statement.executeQuery()) {
+            while (rs.next()) ids.add(rs.getString("c_id"));
+        }
+        return ids;
+    }
+
+    public static int deleteContacts(List<String> ids) throws Exception {
+        boolean autoCommit = conn.getAutoCommit();
+        conn.setAutoCommit(false);
+        try (PreparedStatement statement = conn.prepareStatement("delete from contact where c_id=?")) {
+            int affected = 0;
+            for (String id : ids) {
+                statement.setString(1, id);
+                affected += statement.executeUpdate();
+            }
+            conn.commit();
+            return affected;
+        } catch (Exception e) {
+            conn.rollback();
+            throw e;
+        } finally {
+            conn.setAutoCommit(autoCommit);
+        }
+    }
+
     /** 数据里实际出现过的分类（显示值），内置分类按默认顺序在前，其余按名称排在后面。 */
     public static List<String> listContactCategories() throws Exception {
         Set<String> present = new HashSet<>();

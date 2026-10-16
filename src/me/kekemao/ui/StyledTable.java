@@ -160,7 +160,17 @@ public class StyledTable extends JTable {
             g.fill(new Rectangle2D.Double(0, hoverY.get(), w, rh));
         }
         double sa = selA.get();
-        if (sa > 0.01 && getRowCount() > 0) {
+        if (getSelectedRowCount() > 1) {
+            // 多选时每一行都铺上选中色，不做滑动动画
+            for (int r : getSelectedRows()) {
+                double y = r * rh;
+                if (y + rh < clip.y || y > clip.y + clip.height) continue;
+                g.setColor(Palette.ACCENT_SOFT);
+                g.fill(new Rectangle2D.Double(0, y, w, rh));
+                g.setColor(Palette.ACCENT);
+                g.fill(new RoundRectangle2D.Double(2, y + 10, 3, rh - 20, 3, 3));
+            }
+        } else if (sa > 0.01 && getRowCount() > 0) {
             double y = selY.get();
             g.setColor(Palette.alpha(Palette.ACCENT_SOFT, sa));
             g.fill(new Rectangle2D.Double(0, y, w, rh));
