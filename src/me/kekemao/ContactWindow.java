@@ -5,6 +5,8 @@ import me.kekemao.ui.FlatButton;
 import me.kekemao.ui.Fonts;
 import me.kekemao.ui.Glyph;
 import me.kekemao.ui.LogoMark;
+import me.kekemao.ui.MenuButton;
+import me.kekemao.ui.MenuRow;
 import me.kekemao.ui.MorphText;
 import me.kekemao.ui.Palette;
 import me.kekemao.ui.StyledTable;
@@ -190,12 +192,9 @@ public class ContactWindow extends JFrame {
 
         JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 3));
         actions.setOpaque(false);
-        FlatButton importButton = new FlatButton("", Glyph.UPLOAD, FlatButton.Kind.GHOST);
-        importButton.setToolTipText("从 CSV 导入");
-        importButton.addActionListener(e -> importContacts());
-        FlatButton exportButton = new FlatButton("", Glyph.DOWNLOAD, FlatButton.Kind.GHOST);
-        exportButton.setToolTipText("导出为 CSV（按当前筛选）");
-        exportButton.addActionListener(e -> exportContacts());
+        // 导入导出是低频的数据管理操作：收进一个写明文字的下拉，不和翻页箭头抢形状
+        MenuButton dataButton = new MenuButton("导入导出", null, FlatButton.Kind.GHOST, buildDataMenu());
+        dataButton.setToolTipText("从 CSV 导入，或导出当前筛选的联系人");
         deleteButton = new FlatButton("", Glyph.TRASH, FlatButton.Kind.GHOST);
         deleteButton.setToolTipText("删除选中的联系人（Delete）");
         deleteButton.addActionListener(e -> deleteSelected());
@@ -205,14 +204,30 @@ public class ContactWindow extends JFrame {
         addButton = new FlatButton("新增联系人", Glyph.PLUS, FlatButton.Kind.PRIMARY);
         addButton.setToolTipText("新增联系人（" + (isMac() ? "⌘" : "Ctrl+") + "N）");
         addButton.addActionListener(e -> showEditSheet(null, addButton, null));
-        actions.add(importButton);
-        actions.add(exportButton);
+        actions.add(dataButton);
         actions.add(deleteButton);
         actions.add(Box.createHorizontalStrut(4));
         actions.add(editButton);
         actions.add(addButton);
         bar.add(actions, BorderLayout.EAST);
         return bar;
+    }
+
+    private JPopupMenu buildDataMenu() {
+        JPopupMenu menu = new JPopupMenu();
+        menu.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(Palette.LINE_STRONG, 1), BorderFactory.createEmptyBorder(4, 0, 4, 0)));
+        String mod = isMac() ? "⌘" : "Ctrl+";
+        MenuRow importItem = new MenuRow(Glyph.UPLOAD, "导入联系人…",
+                () -> "从 CSV 文件，按编号更新或新增", mod + "I");
+        importItem.addActionListener(e -> importContacts());
+        MenuRow exportItem = new MenuRow(Glyph.DOWNLOAD, "导出联系人…",
+                () -> isFiltered() ? "当前筛选的 " + total + " 位联系人，存为 CSV" : "全部 " + total + " 位联系人，存为 CSV",
+                mod + "E");
+        exportItem.addActionListener(e -> exportContacts());
+        menu.add(importItem);
+        menu.add(exportItem);
+        return menu;
     }
 
     private JComponent buildTableCard() {
@@ -492,6 +507,8 @@ public class ContactWindow extends JFrame {
         bindKey(rp, KeyStroke.getKeyStroke(KeyEvent.VK_K, menuKey), "palette", this::openCommandPalette);
         bindKey(rp, KeyStroke.getKeyStroke(KeyEvent.VK_N, menuKey), "add", () -> showEditSheet(null, addButton, null));
         bindKey(rp, KeyStroke.getKeyStroke(KeyEvent.VK_F, menuKey), "find", this::focusSearch);
+        bindKey(rp, KeyStroke.getKeyStroke(KeyEvent.VK_I, menuKey), "import", this::importContacts);
+        bindKey(rp, KeyStroke.getKeyStroke(KeyEvent.VK_E, menuKey), "export", this::exportContacts);
         bindKey(rp, KeyStroke.getKeyStroke(KeyEvent.VK_PAGE_UP, 0), "prev-page", () -> goToPage(current - 1));
         bindKey(rp, KeyStroke.getKeyStroke(KeyEvent.VK_PAGE_DOWN, 0), "next-page", () -> goToPage(current + 1));
     }

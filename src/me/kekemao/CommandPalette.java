@@ -61,8 +61,8 @@ final class CommandPalette {
         actions.add(new Item("新增联系人", "Ctrl+N", Glyph.PLUS, false, () -> owner.showEditSheet(null, null, null)));
         actions.add(new Item("修改选中的联系人", "Enter", Glyph.PENCIL, false, owner::openEditSheet));
         actions.add(new Item("删除选中的联系人", "Delete", Glyph.TRASH, false, owner::deleteSelected));
-        actions.add(new Item("从 CSV 导入", null, Glyph.UPLOAD, false, owner::importContacts));
-        actions.add(new Item("导出为 CSV", "按当前筛选", Glyph.DOWNLOAD, false, owner::exportContacts));
+        actions.add(new Item("导入联系人", "Ctrl+I", Glyph.UPLOAD, false, owner::importContacts));
+        actions.add(new Item("导出联系人", "Ctrl+E", Glyph.DOWNLOAD, false, owner::exportContacts));
         actions.add(new Item("搜索框", "Ctrl+F", Glyph.SEARCH, false, owner::focusSearch));
         actions.add(new Item("修改密码", null, Glyph.LOCK, false, () -> ChangePasswordSheet.open(owner, null)));
         actions.add(new Item("检查更新", UpdateChecker.displayVersion(), Glyph.DOWNLOAD, false, owner::checkForUpdates));
