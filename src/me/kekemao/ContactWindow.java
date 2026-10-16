@@ -65,6 +65,7 @@ public class ContactWindow extends JFrame {
     private FlatButton addButton;
     private FlatButton editButton;
     private FlatButton deleteButton;
+    private FlatButton shareButton;
     private FlatButton prevButton;
     private FlatButton nextButton;
     private FlatButton commandButton;
@@ -88,6 +89,7 @@ public class ContactWindow extends JFrame {
         schedulePageSizeRefresh();
         UpdateChecker.checkOnStartup(this);
         CloudBackup.onStartup(this);
+        ShareInbox.watch(this);
     }
 
     // ================= 界面 =================
@@ -195,10 +197,13 @@ public class ContactWindow extends JFrame {
         actions.setOpaque(false);
         // 导入导出是低频的数据管理操作：收进一个写明文字的下拉，不和翻页箭头抢形状
         MenuButton dataButton = new MenuButton("导入导出", null, FlatButton.Kind.GHOST, buildDataMenu());
-        dataButton.setToolTipText("从 CSV 导入，或导出当前筛选的联系人");
+        dataButton.setToolTipText("CSV 导入导出，或接收别人分享的联系人");
         deleteButton = new FlatButton("", Glyph.TRASH, FlatButton.Kind.GHOST);
         deleteButton.setToolTipText("删除选中的联系人（Delete）");
         deleteButton.addActionListener(e -> deleteSelected());
+        shareButton = new FlatButton("分享", Glyph.SHARE, FlatButton.Kind.GHOST);
+        shareButton.setToolTipText("把选中的联系人生成分享码、二维码或在线口令");
+        shareButton.addActionListener(e -> shareContacts());
         editButton = new FlatButton("修改", Glyph.PENCIL, FlatButton.Kind.SECONDARY);
         editButton.setToolTipText("修改选中的联系人（双击行）");
         editButton.addActionListener(e -> openEditSheet());
@@ -207,6 +212,7 @@ public class ContactWindow extends JFrame {
         addButton.addActionListener(e -> showEditSheet(null, addButton, null));
         actions.add(dataButton);
         actions.add(deleteButton);
+        actions.add(shareButton);
         actions.add(Box.createHorizontalStrut(4));
         actions.add(editButton);
         actions.add(addButton);
@@ -226,8 +232,19 @@ public class ContactWindow extends JFrame {
                 () -> isFiltered() ? "当前筛选的 " + total + " 位联系人，存为 CSV" : "全部 " + total + " 位联系人，存为 CSV",
                 mod + "E");
         exportItem.addActionListener(e -> exportContacts());
+        MenuRow shareItem = new MenuRow(Glyph.SHARE, "分享联系人…", () -> {
+            int n = table.getSelectedRowCount();
+            if (n > 0) return "选中的 " + n + " 位，生成分享码、二维码或口令";
+            return isFiltered() ? "当前筛选的 " + total + " 位，生成分享码、二维码或口令" : "先选中要分享的联系人";
+        }, null);
+        shareItem.addActionListener(e -> shareContacts());
+        MenuRow receiveItem = new MenuRow(Glyph.DOWNLOAD, "接收分享…", () -> "粘贴分享码、口令，或识别二维码图片", null);
+        receiveItem.addActionListener(e -> receiveShare());
         menu.add(importItem);
         menu.add(exportItem);
+        menu.addSeparator();
+        menu.add(shareItem);
+        menu.add(receiveItem);
         return menu;
     }
 
@@ -315,6 +332,8 @@ public class ContactWindow extends JFrame {
         editItem.addActionListener(ev -> openEditSheet());
         JMenuItem batchItem = new JMenuItem("批量修改…", Glyph.PENCIL.icon(16, Palette.INK_2));
         batchItem.addActionListener(ev -> openBatchEditSheet());
+        JMenuItem shareItem = new JMenuItem("分享…", Glyph.SHARE.icon(16, Palette.INK_2));
+        shareItem.addActionListener(ev -> shareContacts());
         JMenuItem delItem = new JMenuItem("删除此联系人", Glyph.TRASH.icon(16, Palette.DANGER));
         delItem.setForeground(Palette.DANGER);
         delItem.addActionListener(ev -> deleteSelected());
@@ -322,6 +341,7 @@ public class ContactWindow extends JFrame {
         menu.addSeparator();
         menu.add(editItem);
         menu.add(batchItem);
+        menu.add(shareItem);
         menu.add(delItem);
         // 右键时先选中鼠标下的那一行；点在已选中的行上则保留多选
         menu.addPopupMenuListener(new javax.swing.event.PopupMenuListener() {
@@ -335,6 +355,7 @@ public class ContactWindow extends JFrame {
                     }
                     int count = table.getSelectedRowCount();
                     editItem.setVisible(count <= 1);
+                    shareItem.setText(count > 1 ? "分享选中的 " + count + " 位…" : "分享…");
                     delItem.setText(count > 1 ? "删除选中的 " + count + " 位联系人" : "删除此联系人");
                 });
             }
@@ -574,6 +595,8 @@ public class ContactWindow extends JFrame {
         boolean selected = row >= 0;
         editButton.setEnabled(selected);
         deleteButton.setEnabled(selected);
+        shareButton.setEnabled(selected || (isFiltered() && total > 0));
+        shareButton.setText(count > 1 ? "分享 " + count + " 位" : "分享");
         editButton.setText(count > 1 ? "批量修改 " + count + " 位" : "修改");
         editButton.setToolTipText(count > 1 ? "把选中的联系人改成同一个地址、公司等" : "修改选中的联系人（双击行）");
         if (count > 1) {
@@ -749,6 +772,35 @@ public class ContactWindow extends JFrame {
                 throw new IllegalStateException(e.getMessage(), e);
             }
         }, editButton.isShowing() ? editButton : null);
+    }
+
+    /** 分享选中的联系人；没有选中但有筛选时，分享全部筛选结果。 */
+    void shareContacts() {
+        if (table.isEditing()) table.getCellEditor().stopCellEditing();
+        List<Map<String, Object>> contacts = new ArrayList<>();
+        try {
+            if (table.getSelectedRowCount() > 0) {
+                List<String> ids = new ArrayList<>();
+                for (int row : table.getSelectedRows()) ids.add(getContactIdAtRow(row));
+                contacts.addAll(Utils.loadContacts(ids));
+            } else if (isFiltered() && total > 0) {
+                contacts.addAll(Utils.loadContacts(Utils.listContactIds(getSearchMap())));
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+            Theme.showMessage(this, "读取联系人失败：" + e.getMessage(), Theme.MESSAGE_ERROR);
+            return;
+        }
+        if (contacts.isEmpty()) {
+            Theme.showMessage(this, "请先选中要分享的联系人（Ctrl/Shift 可多选）", Theme.MESSAGE_WARNING);
+            return;
+        }
+        ShareSheet.open(this, contacts, shareButton.isShowing() && shareButton.isEnabled() ? shareButton : null);
+    }
+
+    /** 接收分享：剪贴板里有分享就直接读出来，没有就让用户粘贴。 */
+    void receiveShare() {
+        ReceiveSheet.open(this, ShareInbox.read(true), null, null);
     }
 
     /** 由命令面板直接打开某个联系人。 */
