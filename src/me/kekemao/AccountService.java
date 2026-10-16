@@ -199,6 +199,22 @@ public final class AccountService {
         return null;
     }
 
+    /** 应用内更新重启后恢复登录状态：只认数据库里确实存在的账号。 */
+    public static synchronized boolean resume(String username) {
+        Connection conn = Utils.getConn();
+        if (conn == null || username == null) return false;
+        try (PreparedStatement query = conn.prepareStatement("SELECT 1 FROM admin WHERE username=?")) {
+            query.setString(1, username);
+            try (ResultSet rs = query.executeQuery()) {
+                if (!rs.next()) return false;
+            }
+            currentUser = username;
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     public static synchronized void logout() {
         currentUser = null;
     }

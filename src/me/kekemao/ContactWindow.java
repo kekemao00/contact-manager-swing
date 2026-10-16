@@ -86,6 +86,7 @@ public class ContactWindow extends JFrame {
         setVisible(true);
         Fade.in(getRootPane());
         schedulePageSizeRefresh();
+        UpdateChecker.announceInstalled(this);
         UpdateChecker.checkOnStartup(this);
         CloudBackup.onStartup(this);
     }
@@ -390,10 +391,12 @@ public class ContactWindow extends JFrame {
         change.addActionListener(e -> ChangePasswordSheet.open(this, null));
         JMenuItem logout = new JMenuItem("退出登录", Glyph.LOGOUT.icon(16, Palette.INK_2));
         logout.addActionListener(e -> logout());
-        JMenuItem update = new JMenuItem("检查更新（当前 " + UpdateChecker.displayVersion() + "）",
-                Glyph.DOWNLOAD.icon(16, Palette.INK_2));
+        boolean ready = UpdateChecker.phase() == UpdateChecker.Phase.READY;
+        JMenuItem update = new JMenuItem(UpdateChecker.menuLabel(),
+                (ready ? Glyph.RESET : Glyph.DOWNLOAD).icon(16, ready ? Palette.ACCENT : Palette.INK_2));
         update.addActionListener(e -> checkForUpdates());
-        JCheckBoxMenuItem autoUpdate = new JCheckBoxMenuItem("启动时自动检查更新", UpdateChecker.isAutoCheckEnabled());
+        JCheckBoxMenuItem autoUpdate = new JCheckBoxMenuItem("自动下载更新", UpdateChecker.isAutoCheckEnabled());
+        autoUpdate.setToolTipText("启动时在后台检查并下载新版本，准备好后提示重启");
         autoUpdate.addActionListener(e -> UpdateChecker.setAutoCheckEnabled(autoUpdate.isSelected()));
         menu.add(change);
         menu.addSeparator();
