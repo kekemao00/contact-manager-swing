@@ -7,6 +7,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -200,6 +201,61 @@ public class Utils {
         return DATA_DIR;
     }
 
+    public static String getDbPath() {
+        return DB_PATH;
+    }
+
+    public static int countContacts() throws Exception {
+        try (PreparedStatement statement = conn.prepareStatement("select count(1) from contact");
+             ResultSet rs = statement.executeQuery()) {
+            return rs.next() ? rs.getInt(1) : 0;
+        }
+    }
+
+    /**
+     * 用另一份数据库（云端备份快照）替换本机数据库，返回其中的联系人数。
+     * 先检查快照能打开、表结构对得上，再把本机现在的数据另存一份到 backup 文件夹，最后替换并重新连接。
+     */
+    public static synchronized int replaceDatabase(Path source) throws Exception {
+        // 先复制到本地：网盘里的文件可能只是占位符，复制会让网盘客户端把它下载下来
+        Path staged = Files.createTempFile(Path.of(DATA_DIR), "restore_", ".db");
+        try {
+            Files.copy(source, staged, StandardCopyOption.REPLACE_EXISTING);
+            int count;
+            try (Connection check = DriverManager.getConnection("jdbc:sqlite:" + staged);
+                 Statement s = check.createStatement()) {
+                try (ResultSet rs = s.executeQuery("PRAGMA integrity_check")) {
+                    if (!rs.next() || !"ok".equalsIgnoreCase(rs.getString(1))) {
+                        throw new IOException("备份文件已损坏");
+                    }
+                }
+                try (ResultSet rs = s.executeQuery("select count(1) from admin")) {
+                    if (!rs.next() || rs.getInt(1) == 0) throw new IOException("备份里没有登录账号");
+                }
+                try (ResultSet rs = s.executeQuery("select count(1) from contact")) {
+                    count = rs.next() ? rs.getInt(1) : 0;
+                }
+            } catch (SQLException e) {
+                throw new IOException("不是有效的通讯录备份：" + e.getMessage(), e);
+            }
+
+            // 恢复前的数据单独存一份，不参与自动清理；复制失败就不恢复
+            String stamp = new SimpleDateFormat("yyyyMMdd_HHmmss_SSS").format(new Date());
+            Files.copy(Path.of(DB_PATH), Path.of(BACKUP_DIR, "恢复前_" + stamp + ".db"));
+            try {
+                if (stmt != null) stmt.close();
+                if (conn != null) conn.close();
+                Files.move(staged, Path.of(DB_PATH), StandardCopyOption.REPLACE_EXISTING);
+            } finally {
+                conn = DriverManager.getConnection(url);
+                stmt = conn.createStatement();
+            }
+            return count;
+        } finally {
+            Files.deleteIfExists(staged);
+        }
+    }
+
     public static Statement getStatement() {
         return stmt;
     }
@@ -382,6 +438,7 @@ public class Utils {
                 }
             }
             conn.commit();
+            CloudBackup.changed();
         } catch (Exception e) {
             // 导入失败时整体回滚，避免只导入一半
             conn.rollback();
@@ -397,7 +454,7 @@ public class Utils {
         try (PreparedStatement statement = conn.prepareStatement(
                 "insert into contact(c_name,c_nickname,c_phone,c_email,c_address,c_company,c_job_title,notes) values(?,?,?,?,?,?,?,?)")) {
             bindContactStatement(statement, cName, cNickname, cPhone, cEmail, cAddress, cCompany, cJobTitle, notes);
-            return statement.executeUpdate();
+            return changed(statement.executeUpdate());
         }
     }
 
@@ -407,7 +464,7 @@ public class Utils {
                 "update contact set c_name=?,c_nickname=?,c_phone=?,c_email=?,c_address=?,c_company=?,c_job_title=?,notes=? where c_id=?")) {
             bindContactStatement(statement, cName, cNickname, cPhone, cEmail, cAddress, cCompany, cJobTitle, notes);
             statement.setString(9, cId);
-            return statement.executeUpdate();
+            return changed(statement.executeUpdate());
         }
     }
 
@@ -419,7 +476,7 @@ public class Utils {
         try (PreparedStatement statement = conn.prepareStatement("update contact set " + field + "=? where c_id=?")) {
             statement.setString(1, value);
             statement.setString(2, cId);
-            return statement.executeUpdate();
+            return changed(statement.executeUpdate());
         }
     }
 
@@ -448,8 +505,14 @@ public class Utils {
     public static int deleteContact(String cId) throws Exception {
         try (PreparedStatement statement = conn.prepareStatement("delete from contact where c_id=?")) {
             statement.setString(1, cId);
-            return statement.executeUpdate();
+            return changed(statement.executeUpdate());
         }
+    }
+
+    /** 有行被改动时通知云端备份。 */
+    private static int changed(int rows) {
+        if (rows > 0) CloudBackup.changed();
+        return rows;
     }
 
     private static void bindContactStatement(PreparedStatement statement,
